@@ -1,0 +1,178 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Serverless Social Post Scheduler - Schedule and Track Social Media Posts with Events
+
+Parameters:
+  XApiKey:
+    Type: String
+    Description: API key used for your X/Twitter Account
+  XApiKeySecret:
+    Type: String
+    Description: API key secret for X/Twitter
+  XBearerToken:
+    Type: String
+    Description: Bearer token for X/Twitter
+  XAccessToken:
+    Type: String
+    Description: Access token for X/Twitter
+  XAccessTokenSecret:
+    Type: String
+    Description: Access token secret for X/Twitter
+
+Globals:
+  Function:
+    Runtime: nodejs18.x
+    Architectures:
+      - arm64
+    Tracing: Active
+    Timeout: 15
+    MemorySize: 1024
+    Handler: index.handler
+    Environment:
+      Variables:
+        AWS_NODEJS_CONNECTION_REUSE_ENABLED: 1
+
+Resources:
+  ApiKeys:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      SecretString:
+        Fn::Sub:
+          - |-
+            {
+              "xApiKey": "${XApiKey}",
+              "xApiKeySecret": "${XApiKeySecret}",
+              "xBearerToken": "${XBearerToken}",
+              "xAccessToken": "${XAccessToken}",
+              "xAccessTokenSecret": "${XAccessTokenSecret}"
+            }
+          - XApiKey: !Ref XApiKey
+            XApiKeySecret: !Ref XApiKeySecret
+            XBearerToken: !Ref XBearerToken
+            XAccessToken: !Ref XAccessToken
+            XAccessTokenSecret: !Ref XAccessTokenSecret
+
+  SendXPostFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/send-x-post
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource: !Ref ApiKeys
+      Environment:
+        Variables:
+          SECRET_ID: !Ref ApiKeys
+
+  SocialPostScheduleGroup:
+    Type: AWS::Scheduler::ScheduleGroup
+    Properties:
+      Name: social
+
+  ScheduleSocialStateMachine:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      Type: STANDARD
+      DefinitionUri: state-machines/schedule-social-post.asl.json
+      DefinitionSubstitutions:
+        SchedulerCreateSchedule: !Sub arn:${AWS::Partition}:states:::aws-sdk:scheduler:createSchedule
+        SchedulerGetSchedule: !Sub arn:${AWS::Partition}:states:::aws-sdk:scheduler:getSchedule
+        SchedulerUpdateSchedule: !Sub arn:${AWS::Partition}:states:::aws-sdk:scheduler:updateSchedule
+        EventBridgePutEvents: !Sub arn:${AWS::Partition}:states:::events:putEvents
+        SchedulerRole: !GetAtt SendSocialPostSchedulerRole.Arn
+        SendSocialPostStateMachine: !Ref SendSocialStateMachine
+        DeadLetterQueue: !GetAtt SocialPostDLQ.Arn
+      Policies:
+        - Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action:
+                - scheduler:CreateSchedule
+                - scheduler:GetSchedule
+                - scheduler:UpdateSchedule
+              Resource: !Sub arn:${AWS::Partition}:scheduler:${AWS::Region}:${AWS::AccountId}:schedule/social/*
+            - Effect: Allow
+              Action: events:PutEvents
+              Resource: !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:event-bus/default
+            - Effect: Allow
+              Action: iam:PassRole
+              Resource: !GetAtt SendSocialPostSchedulerRole.Arn
+      Events:
+        ScheduledSocialPostEvent:
+          Type: EventBridgeRule
+          Properties:
+            Pattern:
+              detail-type:
+                - Schedule Social Post
+
+  SendSocialStateMachine:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      Type: STANDARD
+      DefinitionUri: state-machines/send-social-post.asl.json
+      DefinitionSubstitutions:
+        LambdaInvoke: !Sub arn:${AWS::Partition}:states:::lambda:invoke
+        SendTwitterPost: !GetAtt SendXPostFunction.Arn
+        EventBridgePutEvents: !Sub arn:${AWS::Partition}:states:::events:putEvents
+      Policies:
+        - Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action: lambda:InvokeFunction
+              Resource: !GetAtt SendXPostFunction.Arn
+            - Effect: Allow
+              Action: events:PutEvents
+              Resource: !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:event-bus/default
+
+  SendSocialPostSchedulerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - scheduler.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: SendSocialPostSchedulerPolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action: states:StartExecution
+                Resource: !GetAtt SendSocialStateMachine.Arn
+
+  SocialPostDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      MessageRetentionPeriod: 1209600
+
+  DLQAlarmTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: SocialPostAlarm
+
+  DLQAgeAlarm:
+    Type: 'AWS::CloudWatch::Alarm'
+    Properties:
+      AlarmName: SocialPostAlarm
+      AlarmDescription: Alarm if failed social post messages stay in DLQ for more than 1 hour
+      Namespace: AWS/SQS
+      MetricName: ApproximateAgeOfOldestMessage
+      Statistic: Maximum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 3600
+      ComparisonOperator: GreaterThanThreshold
+      AlarmActions:
+        - !Ref DLQAlarmTopic
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt SocialPostDLQ.QueueName

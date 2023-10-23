@@ -1,0 +1,128 @@
+{
+  "Comment": "A description of my state machine",
+  "StartAt": "Has Reference Number?",
+  "States": {
+    "Has Reference Number?": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.detail.referenceNumber",
+          "IsPresent": true,
+          "Next": "Move up reference number"
+        }
+      ],
+      "Default": "Create reference number"
+    },
+    "Move up reference number": {
+      "Type": "Pass",
+      "Next": "Does Schedule Already Exist?",
+      "Parameters": {
+        "referenceNumber.$": "$.detail.referenceNumber",
+        "detail.$": "$.detail"
+      }
+    },
+    "Create reference number": {
+      "Type": "Pass",
+      "Next": "Does Schedule Already Exist?",
+      "Parameters": {
+        "referenceNumber.$": "States.UUID()",
+        "detail.$": "$.detail"
+      }
+    },
+    "Does Schedule Already Exist?": {
+      "Type": "Task",
+      "Next": "Update Schedule",
+      "Parameters": {
+        "Name.$": "States.Format('{}-{}', $.detail.platform, $.referenceNumber)",
+        "GroupName": "social"
+      },
+      "Resource": "${SchedulerGetSchedule}",
+      "ResultPath": null,
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "Scheduler.ResourceNotFoundException"
+          ],
+          "Next": "Create One-Time Schedule",
+          "ResultPath": null
+        }
+      ]
+    },
+    "Update Schedule": {
+      "Type": "Task",
+      "Next": "Success",
+      "Parameters": {
+        "ActionAfterCompletion": "DELETE",
+        "FlexibleTimeWindow": {
+          "Mode": "FLEXIBLE",
+          "MaximumWindowInMinutes": 8
+        },
+        "Name.$": "States.Format('{}-{}', $.detail.platform, $.referenceNumber)",
+        "GroupName": "social",
+        "ScheduleExpression.$": "States.Format('at({})', $.detail.scheduledDate)",
+        "Target": {
+          "Arn": "${SendSocialPostStateMachine}",
+          "RoleArn": "${SchedulerRole}",
+          "DeadLetterConfig": {
+            "Arn": "${DeadLetterQueue}"
+          },
+          "Input": {
+            "referenceNumber.$": "$.referenceNumber",
+            "message.$": "$.detail.message",
+            "platform.$": "$.detail.platform"
+          }
+        }
+      },
+      "Resource": "${SchedulerUpdateSchedule}",
+      "ResultPath": null
+    },
+    "Create One-Time Schedule": {
+      "Type": "Task",
+      "Next": "Send Schedule Created Event",
+      "Parameters": {
+        "ActionAfterCompletion": "DELETE",
+        "FlexibleTimeWindow": {
+          "Mode": "FLEXIBLE",
+          "MaximumWindowInMinutes": 8
+        },
+        "Name.$": "States.Format('{}-{}', $.detail.platform, $.referenceNumber)",
+        "GroupName": "social",
+        "ScheduleExpression.$": "States.Format('at({})', $.detail.scheduledDate)",
+        "Target": {
+          "Arn": "${SendSocialPostStateMachine}",
+          "RoleArn": "${SchedulerRole}",
+          "DeadLetterConfig": {
+            "Arn": "${DeadLetterQueue}"
+          },
+          "Input": {
+            "referenceNumber.$": "$.referenceNumber",
+            "message.$": "$.detail.message",
+            "platform.$": "$.detail.platform"
+          }
+        }
+      },
+      "Resource": "${SchedulerCreateSchedule}",
+      "ResultPath": "$.schedule"
+    },
+    "Send Schedule Created Event": {
+      "Type": "Task",
+      "Resource": "${EventBridgePutEvents}",
+      "Parameters": {
+        "Entries": [
+          {
+            "Detail": {
+              "referenceNumber.$": "$.referenceNumber",
+              "scheduledDate.$": "$.detail.scheduledDate"
+            },
+            "DetailType": "Post Scheduled",
+            "Source": "SocialPostScheduler"
+          }
+        ]
+      },
+      "Next": "Success"
+    },
+    "Success": {
+      "Type": "Succeed"
+    }
+  }
+}

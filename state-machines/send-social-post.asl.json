@@ -1,0 +1,108 @@
+{
+  "Comment": "Sends a social post",
+  "StartAt": "Switch Platform Type",
+  "States": {
+    "Switch Platform Type": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "And": [
+            {
+              "Variable": "$.platform",
+              "IsPresent": true
+            },
+            {
+              "Variable": "$.platform",
+              "IsString": true
+            },
+            {
+              "Variable": "$.platform",
+              "StringEquals": "twitter"
+            }
+          ],
+          "Next": "Send Twitter Post"
+        }
+      ],
+      "Default": "Not Supported"
+    },
+    "Not Supported": {
+      "Type": "Fail",
+      "Error": "Platform.NotSupported",
+      "Cause": "The provided platform is not supported"
+    },
+    "Send Twitter Post": {
+      "Type": "Task",
+      "Resource": "${LambdaInvoke}",
+      "OutputPath": "$.Payload",
+      "Parameters": {
+        "FunctionName": "${SendTwitterPost}",
+        "Payload": {
+          "message.$": "$.message"
+        }
+      },
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException",
+            "Lambda.TooManyRequestsException"
+          ],
+          "IntervalSeconds": 1,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "Next": "Send Social Post Failed Event"
+        }
+      ],
+      "Next": "Send Social Post Sent Event"
+    },
+    "Send Social Post Sent Event": {
+      "Type": "Task",
+      "Resource": "${EventBridgePutEvents}",
+      "Parameters": {
+        "Entries": [
+          {
+            "Detail": {
+              "referenceNumber.$": "$$.Execution.Input.referenceNumber",
+              "postId.$": "$.id"
+            },
+            "DetailType": "Social Post Sent",
+            "Source": "SocialPostSender"
+          }
+        ]
+      },
+      "Next": "Success"
+    },
+    "Success": {
+      "Type": "Succeed"
+    },
+    "Send Social Post Failed Event": {
+      "Type": "Task",
+      "Resource": "${EventBridgePutEvents}",
+      "Parameters": {
+        "Entries": [
+          {
+            "Detail": {
+              "referenceNumber.$": "$$.Execution.Input.referenceNumber"
+            },
+            "DetailType": "Social Post Failed",
+            "Source": "SocialPostSender"
+          }
+        ]
+      },
+      "Next": "Something went wrong"
+    },
+    "Something went wrong": {
+      "Type": "Fail",
+      "Error": "PostFailed",
+      "Cause": "Something went wrong sending the post"
+    }
+  }
+}

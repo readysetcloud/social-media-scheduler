@@ -1,7 +1,24 @@
 {
   "Comment": "Sends a social post",
-  "StartAt": "Switch Platform Type",
+  "StartAt": "Remove From Schedule",
   "States": {
+    "Remove From Schedule": {
+      "Type": "Task",
+      "Resource": "${DynamoDbDeleteItem}",
+      "Parameters": {
+        "TableName": "${TableName}",
+        "Key": {
+          "pk": {
+            "S.$": "$.referenceNumber"
+          },
+          "sk": {
+            "S": "post"
+          }
+        }
+      },
+      "Next": "Switch Platform Type",
+      "ResultPath": null
+    },
     "Switch Platform Type": {
       "Type": "Choice",
       "Choices": [

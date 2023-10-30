@@ -34,6 +34,34 @@ Globals:
         AWS_NODEJS_CONNECTION_REUSE_ENABLED: 1
 
 Resources:
+  PostScheduleTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      KeySchema:
+        - AttributeName: pk
+          KeyType: HASH
+        - AttributeName: sk
+          KeyType: RANGE
+      AttributeDefinitions:
+        - AttributeName: pk
+          AttributeType: S
+        - AttributeName: sk
+          AttributeType: S
+        - AttributeName: type
+          AttributeType: S
+        - AttributeName: sort
+          AttributeType: S
+      GlobalSecondaryIndexes:
+        - IndexName: schedules
+          KeySchema:
+            - AttributeName: type
+              KeyType: HASH
+            - AttributeName: sort
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
   ApiKeys:
     Type: AWS::SecretsManager::Secret
     Properties:
@@ -87,6 +115,12 @@ Resources:
         SchedulerRole: !GetAtt SendSocialPostSchedulerRole.Arn
         SendSocialPostStateMachine: !Ref SendSocialStateMachine
         DeadLetterQueue: !GetAtt SocialPostDLQ.Arn
+        TableName: !Ref PostScheduleTable
+        DynamoDbQuery: !Sub arn:${AWS::Partition}:states:::aws-sdk:dynamodb:query
+        DynamoDbPutItem: !Sub arn:${AWS::Partition}:states:::dynamodb:putItem
+        UnmarshallDataFunction: "{{resolve:ssm:/serverless-toolbox/marshall-unmarshall-data}}"
+        CalculateScheduleFunction: !GetAtt CalculateScheduledTimeFunction.Arn
+        LambdaInvoke: !Sub arn:${AWS::Partition}:states:::lambda:invoke
       Policies:
         - Version: 2012-10-17
           Statement:
@@ -102,6 +136,17 @@ Resources:
             - Effect: Allow
               Action: iam:PassRole
               Resource: !GetAtt SendSocialPostSchedulerRole.Arn
+            - Effect: Allow
+              Action: lambda:InvokeFunction
+              Resource:
+                - "{{resolve:ssm:/serverless-toolbox/marshall-unmarshall-data}}"
+                - !GetAtt CalculateScheduledTimeFunction.Arn
+            - Effect: Allow
+              Action: dynamodb:PutItem
+              Resource: !GetAtt PostScheduleTable.Arn
+            - Effect: Allow
+              Action: dynamodb:Query
+              Resource: !Sub ${PostScheduleTable.Arn}/index/schedules
       Events:
         ScheduledSocialPostEvent:
           Type: EventBridgeRule
@@ -119,6 +164,8 @@ Resources:
         LambdaInvoke: !Sub arn:${AWS::Partition}:states:::lambda:invoke
         SendTwitterPost: !GetAtt SendXPostFunction.Arn
         EventBridgePutEvents: !Sub arn:${AWS::Partition}:states:::events:putEvents
+        DynamoDbDeleteItem: !Sub arn:${AWS::Partition}:states:::dynamodb:deleteItem
+        TableName: !Ref PostScheduleTable
       Policies:
         - Version: 2012-10-17
           Statement:
@@ -128,6 +175,9 @@ Resources:
             - Effect: Allow
               Action: events:PutEvents
               Resource: !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:event-bus/default
+            - Effect: Allow
+              Action: dynamodb:DeleteItem
+              Resource: !GetAtt PostScheduleTable.Arn
 
   SendSocialPostSchedulerRole:
     Type: AWS::IAM::Role
@@ -176,3 +226,14 @@ Resources:
       Dimensions:
         - Name: QueueName
           Value: !GetAtt SocialPostDLQ.QueueName
+
+  CalculateScheduledTimeFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions\calculate-scheduled-time
+      Timeout: 30
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action: 'bedrock:InvokeModel'
+              Resource: '*'

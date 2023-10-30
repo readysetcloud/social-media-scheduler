@@ -33,15 +33,17 @@ Below is an example EventBridge payload to trigger scheduling a post:
     "message": "Hello world!",
     "platform": "twitter",
     "scheduledDate": "2023-10-23T08:48:00",
-    "referenceNumber": "testtweet"
+    "referenceNumber": "testtweet",
+    "campaign": "my test campaign"
   }
 }
 ```
 
 * **message** - This is the contents of the message you wish to send. It must be within the standard 280 characters for a tweet (unless you are a premium member)
 * **platform** - Social media platform to send on. Currently only supports `twitter` (case-sensitive)
-* **scheduledDate** - Date and time in UTC you wish to send the message. There will be up to an 8 minute delay on the sending of the message.
+* **scheduledDate** - *Optional* Date and time in UTC you wish to send the message. There will be up to an 8 minute delay on the sending of the message. If you do not provide this, it will be automatically configured for the next appropriate time slot
 * **referenceNumber** - *Optional* - This is the unique identifier of your social post. This is used on the consumer end for tracking purposes.
+* **campaign** - *Optional* - Used to group social posts and space related ones out. By default, any social posts sent with matching campaigns will be scheduled at least 5 days apart.
 
 When a post is successfully scheduled, an EventBridge event will be sent in your AWS account with the following payload:
 
@@ -57,6 +59,23 @@ When a post is successfully scheduled, an EventBridge event will be sent in your
 ```
 
 You can use this to confirm successful scheduling. If you did not include a reference number, a generated one will be used.
+
+### Scheduling
+
+You have the option to provide a `scheduledDate` property in your initiating event. If provided, it will be used and scheduled at the requested time. However if not provided, an automatic scheduler using [Amazon Bedrock](https://aws.amazon.com/bedrock/) will be used.
+
+**Automatic Scheduling**
+
+By default, the automatic scheduler uses the following rules:
+* No posting on weekends
+* At most one post per day
+* The earliest the post can be scheduled is tomorrow
+* Time of day is optimized for a technical audience primarily in the United States
+* If multiple posts are scheduled for the same campaign, the date will be at least 5 days from the latest one
+
+You can change any of these rules by updating the code in the [calculate scheduled time](./functions/calculate-scheduled-time/index.js) Lambda function.
+
+*Note - You must have the [Anthropic models enabled](https://docs.aws.amazon.com/bedrock/latest/userguide/model-access.html) in your AWS account for this to work.*
 
 ### Sending the post
 

@@ -15,15 +15,146 @@
     },
     "Move up reference number": {
       "Type": "Pass",
-      "Next": "Does Schedule Already Exist?",
+      "Next": "Has Scheduled Date?",
       "Parameters": {
         "referenceNumber.$": "$.detail.referenceNumber",
         "detail.$": "$.detail"
       }
     },
-    "Create reference number": {
+    "Has Scheduled Date?": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.detail.scheduledDate",
+          "IsPresent": true,
+          "Next": "Move up scheduled date"
+        }
+      ],
+      "Default": "Load Post Schedule"
+    },
+    "Move up scheduled date": {
       "Type": "Pass",
       "Next": "Does Schedule Already Exist?",
+      "Parameters": {
+        "referenceNumber.$": "$.referenceNumber",
+        "detail.$": "$.detail",
+        "scheduledDate.$": "$.detail.scheduledDate"
+      }
+    },
+    "Load Post Schedule": {
+      "Type": "Task",
+      "Next": "Has Schedule Items?",
+      "Parameters": {
+        "TableName": "${TableName}",
+        "IndexName": "schedules",
+        "KeyConditionExpression": "#type = :type",
+        "ExpressionAttributeNames": {
+          "#type": "type"
+        },
+        "ExpressionAttributeValues": {
+          ":type": {
+            "S.$": "$.detail.platform"
+          }
+        }
+      },
+      "Resource": "${DynamoDbQuery}",
+      "ResultPath": "$.rawSchedule"
+    },
+    "Has Schedule Items?": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.rawSchedule.Count",
+          "NumericGreaterThan": 0,
+          "Next": "Unmarshall Schedule"
+        }
+      ],
+      "Default": "Initialize Schedule"
+    },
+    "Initialize Schedule": {
+      "Type": "Pass",
+      "Next": "Get Schedule Date",
+      "Parameters": {
+        "detail.$": "$.detail",
+        "schedule": [],
+        "referenceNumber.$": "$.referenceNumber"
+      }
+    },
+    "Unmarshall Schedule": {
+      "Type": "Task",
+      "Resource": "${LambdaInvoke}",
+      "Parameters": {
+        "FunctionName": "${UnmarshallDataFunction}",
+        "Payload": {
+          "marshall": false,
+          "isDynamoDBQuery": true,
+          "data.$": "$.rawSchedule.Items"
+        }
+      },
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException",
+            "Lambda.TooManyRequestsException"
+          ],
+          "IntervalSeconds": 1,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
+      "Next": "Move Schedule Up",
+      "ResultPath": "$.scheduleData"
+    },
+    "Move Schedule Up": {
+      "Type": "Pass",
+      "Next": "Get Schedule Date",
+      "Parameters": {
+        "referenceNumber.$": "$.referenceNumber",
+        "detail.$": "$.detail",
+        "schedule.$": "$.scheduleData.Payload.data"
+      }
+    },
+    "Get Schedule Date": {
+      "Type": "Task",
+      "Resource": "${LambdaInvoke}",
+      "Parameters": {
+        "FunctionName": "${CalculateScheduleFunction}",
+        "Payload": {
+          "post.$": "$.detail",
+          "schedule.$": "$.schedule",
+          "timestamp.$": "$$.State.EnteredTime"
+        }
+      },
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException",
+            "Lambda.TooManyRequestsException"
+          ],
+          "IntervalSeconds": 1,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
+      "Next": "Format All Details",
+      "ResultPath": "$.proposedDate"
+    },
+    "Format All Details": {
+      "Type": "Pass",
+      "Next": "Does Schedule Already Exist?",
+      "Parameters": {
+        "detail.$": "$.detail",
+        "referenceNumber.$": "$.referenceNumber",
+        "scheduledDate.$": "$.proposedDate.Payload.date"
+      }
+    },
+    "Create reference number": {
+      "Type": "Pass",
+      "Next": "Has Scheduled Date?",
       "Parameters": {
         "referenceNumber.$": "States.UUID()",
         "detail.$": "$.detail"
@@ -50,7 +181,7 @@
     },
     "Update Schedule": {
       "Type": "Task",
-      "Next": "Success",
+      "Next": "Has Campaign?",
       "Parameters": {
         "ActionAfterCompletion": "DELETE",
         "FlexibleTimeWindow": {
@@ -59,7 +190,7 @@
         },
         "Name.$": "States.Format('{}-{}', $.detail.platform, $.referenceNumber)",
         "GroupName": "social",
-        "ScheduleExpression.$": "States.Format('at({})', $.detail.scheduledDate)",
+        "ScheduleExpression.$": "States.Format('at({})', $.scheduledDate)",
         "Target": {
           "Arn": "${SendSocialPostStateMachine}",
           "RoleArn": "${SchedulerRole}",
@@ -76,6 +207,72 @@
       "Resource": "${SchedulerUpdateSchedule}",
       "ResultPath": null
     },
+    "Has Campaign?": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.detail.campaign",
+          "IsPresent": true,
+          "Next": "Save Schedule With Campaign"
+        }
+      ],
+      "Default": "Save Schedule Without Campaign"
+    },
+    "Save Schedule With Campaign": {
+      "Type": "Task",
+      "Resource": "${DynamoDbPutItem}",
+      "Parameters": {
+        "TableName": "${TableName}",
+        "Item": {
+          "pk": {
+            "S.$": "$.referenceNumber"
+          },
+          "sk": {
+            "S": "post"
+          },
+          "type": {
+            "S.$": "$.detail.platform"
+          },
+          "sort": {
+            "S.$": "$.scheduledDate"
+          },
+          "message": {
+            "S.$": "$.detail.message"
+          },
+          "campaign": {
+            "S.$": "$.detail.campaign"
+          }
+        }
+      },
+      "ResultPath": null,
+      "Next": "Success"
+    },
+    "Save Schedule Without Campaign": {
+      "Type": "Task",
+      "Resource": "${DynamoDbPutItem}",
+      "Parameters": {
+        "TableName": "${TableName}",
+        "Item": {
+          "pk": {
+            "S.$": "$.referenceNumber"
+          },
+          "sk": {
+            "S": "post"
+          },
+          "type": {
+            "S.$": "$.detail.platform"
+          },
+          "sort": {
+            "S.$": "$.scheduledDate"
+          },
+          "message": {
+            "S.$": "$.detail.message"
+          }
+        }
+      },
+      "Next": "Success",
+      "ResultPath": null
+    },
     "Create One-Time Schedule": {
       "Type": "Task",
       "Next": "Send Schedule Created Event",
@@ -87,7 +284,7 @@
         },
         "Name.$": "States.Format('{}-{}', $.detail.platform, $.referenceNumber)",
         "GroupName": "social",
-        "ScheduleExpression.$": "States.Format('at({})', $.detail.scheduledDate)",
+        "ScheduleExpression.$": "States.Format('at({})', $.scheduledDate)",
         "Target": {
           "Arn": "${SendSocialPostStateMachine}",
           "RoleArn": "${SchedulerRole}",
@@ -102,24 +299,25 @@
         }
       },
       "Resource": "${SchedulerCreateSchedule}",
-      "ResultPath": "$.schedule"
+      "ResultPath": null
     },
     "Send Schedule Created Event": {
       "Type": "Task",
       "Resource": "${EventBridgePutEvents}",
+      "ResultPath": null,
       "Parameters": {
         "Entries": [
           {
             "Detail": {
               "referenceNumber.$": "$.referenceNumber",
-              "scheduledDate.$": "$.detail.scheduledDate"
+              "scheduledDate.$": "$.scheduledDate"
             },
             "DetailType": "Post Scheduled",
             "Source": "SocialPostScheduler"
           }
         ]
       },
-      "Next": "Success"
+      "Next": "Has Campaign?"
     },
     "Success": {
       "Type": "Succeed"

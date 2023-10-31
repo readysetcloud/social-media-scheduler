@@ -30,15 +30,19 @@ Below is an example EventBridge payload to trigger scheduling a post:
   "detail-type": "Schedule Social Post",
   "source": "test",
   "detail": {
-    "message": "Hello world!",
-    "platform": "twitter",
-    "scheduledDate": "2023-10-23T08:48:00",
-    "referenceNumber": "testtweet",
-    "campaign": "my test campaign"
+    "messages": [
+      {
+        "message": "Hello world!",
+        "platform": "twitter",
+        "scheduledDate": "2023-10-23T08:48:00",
+        "referenceNumber": "testtweet",
+        "campaign": "my test campaign"
+      }
+    ]
   }
 }
 ```
-
+* **messages** - Array of message objects to schedule. Messages are processed single threaded for scheduling purposes
 * **message** - This is the contents of the message you wish to send. It must be within the standard 280 characters for a tweet (unless you are a premium member)
 * **platform** - Social media platform to send on. Currently only supports `twitter` (case-sensitive)
 * **scheduledDate** - *Optional* Date and time in UTC you wish to send the message. There will be up to an 8 minute delay on the sending of the message. If you do not provide this, it will be automatically configured for the next appropriate time slot

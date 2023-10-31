@@ -4,9 +4,9 @@ const bedrock = new BedrockRuntimeClient();
 exports.handler = async (state) => {
   try {
     let campaignRule = '';
-    if(state.post.campaign){
+    if (state.post.campaign) {
       const lastCampaignDate = getLatestCampaignDate(state.post.campaign, state.schedule);
-      if(lastCampaignDate){
+      if (lastCampaignDate) {
         campaignRule = `- The date must be at least 5 days after ${lastCampaignDate}`;
       }
     }
@@ -56,11 +56,13 @@ exports.handler = async (state) => {
 const getLatestCampaignDate = (campaign, schedule) => {
   const filteredPosts = schedule?.filter(post => post.campaign?.toLowerCase() === campaign.toLowerCase());
 
-  const latestPost = filteredPosts?.reduce((latest, current) => {
+  if (filteredPosts?.length) {
+    const latestPost = filteredPosts?.reduce((latest, current) => {
       return new Date(current.sort) > new Date(latest.sort) ? current : latest;
-  });
+    });
 
-  return latestPost?.sort;
+    return latestPost?.sort;
+  }
 };
 
 class AIError extends Error {

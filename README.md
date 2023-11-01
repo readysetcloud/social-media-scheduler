@@ -2,6 +2,8 @@
 
 This service will schedule your social posts asynchronously. The schedules run on a variable delay timer to simulate human activity. Currently the only social network supported is X/Twitter.
 
+*For a full explanation of how this works, [check out the blog post](https://readysetcloud.io/blog/allen.helton/automatic-social-posts)*
+
 ### Deploy
 
 To deploy this to your AWS account, you will need the [SAM CLI](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/install-sam-cli.html).
@@ -10,7 +12,9 @@ You will need to follow the Twitter developer setup page to create a [Twitter de
 
 The keys required are your `API Key`, `API Key Secret`, `Bearer Token`, `Access Token`, and `Access Token Secret`. Be sure to create your Access Token Secret with read and write permissions (will require you to setup OAuth 1.0).
 
-After you have your Twitter credentials and SAM CLI installed, you can deploy into your account with the following commands:
+After you have your Twitter credentials and SAM CLI installed, you will need to deploy [my free serverless toolbox](https://github.com/allenheltondev/serverless-toolbox) into your account. This is a stack that has basic utility functions that can be reused throughout your applications.
+
+Once installed, you can deploy this stack into your account with the following commands:
 
 ```bash
 sam build

@@ -72,6 +72,8 @@ You can use this to confirm successful scheduling. If you did not include a refe
 
 You have the option to provide a `scheduledDate` property in your initiating event. If provided, it will be used and scheduled at the requested time. However if not provided, an automatic scheduler using [Amazon Bedrock](https://aws.amazon.com/bedrock/) will be used.
 
+![Workflow diagram of the scheduling process](/images/scheduling.png)
+
 **Automatic Scheduling**
 
 By default, the automatic scheduler uses the following rules:
@@ -88,6 +90,8 @@ You can change any of these rules by updating the code in the [calculate schedul
 ### Sending the post
 
 After a post is scheduled, the EventBridge schedule will trigger at the time you configured. By default, it is set to an 8 minute flexible time window which you can change by updating the source code.
+
+![Workflow diagram of the sending process](/images/sending.png)
 
 #### Successful posting
 

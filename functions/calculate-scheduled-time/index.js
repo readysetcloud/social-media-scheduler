@@ -20,6 +20,7 @@ exports.handler = async (state) => {
       - Only one post is allowed to be scheduled a day
       - Select the next available day in the future that matches the above rules unless otherwise specified
       - The scheduled time of day must vary between high engagement times in the morning and afternoon for the target audience.
+      - Make sure the year is correct. If scheduling into January from December, make sure to increment the year.
       ${campaignRule}
     Schedule:
     ${promptSchedule}

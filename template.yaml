@@ -3,37 +3,45 @@ Transform: AWS::Serverless-2016-10-31
 Description: >
   Serverless Social Post Scheduler - Schedule and Track Social Media Posts with Events
 
-Parameters:
-  XApiKey:
-    Type: String
-    Description: API key used for your X/Twitter Account
-  XApiKeySecret:
-    Type: String
-    Description: API key secret for X/Twitter
-  XBearerToken:
-    Type: String
-    Description: Bearer token for X/Twitter
-  XAccessToken:
-    Type: String
-    Description: Access token for X/Twitter
-  XAccessTokenSecret:
-    Type: String
-    Description: Access token secret for X/Twitter
+Metadata:
+  esbuild-properties: &esbuild-properties
+    Format: esm
+    Minify: true
+    OutExtension:
+      - .js=.mjs
+    Target: es2020
+    Sourcemap: false
+    EntryPoints:
+      - index.mjs
+    Banner:
+      - js=import { createRequire } from 'module'; const require = createRequire(import.meta.url);
+    External:
+      - '@aws-sdk/*'
 
 Globals:
   Function:
-    Runtime: nodejs18.x
+    Runtime: nodejs20.x
     Architectures:
       - arm64
     Tracing: Active
     Timeout: 15
     MemorySize: 1024
-    Handler: index.handler
+    CodeUri: functions
     Environment:
       Variables:
         AWS_NODEJS_CONNECTION_REUSE_ENABLED: 1
 
 Resources:
+  AccountApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: v1
+      DefinitionBody:
+        'Fn::Transform':
+          Name: AWS::Include
+          Parameters:
+            Location: ./openapi.yaml
+
   PostScheduleTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -62,45 +70,218 @@ Resources:
           Projection:
             ProjectionType: ALL
 
-  ApiKeys:
-    Type: AWS::SecretsManager::Secret
-    Properties:
-      SecretString:
-        Fn::Sub:
-          - |-
-            {
-              "xApiKey": "${XApiKey}",
-              "xApiKeySecret": "${XApiKeySecret}",
-              "xBearerToken": "${XBearerToken}",
-              "xAccessToken": "${XAccessToken}",
-              "xAccessTokenSecret": "${XAccessTokenSecret}"
-            }
-          - XApiKey: !Ref XApiKey
-            XApiKeySecret: !Ref XApiKeySecret
-            XBearerToken: !Ref XBearerToken
-            XAccessToken: !Ref XAccessToken
-            XAccessTokenSecret: !Ref XAccessTokenSecret
-
   SendXPostFunction:
     Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        <<: *esbuild-properties
+        EntryPoints:
+          - send-x-post.mjs
     Properties:
-      CodeUri: functions/send-x-post
+      Handler: send-x-post.handler
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action: ssm:GetParameter
+              Resource: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/social-media/*
+
+  GetAccountConfigFormFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        <<: *esbuild-properties
+        EntryPoints:
+          - get-account-config-form.mjs
+    Properties:
+      Handler: get-account-config-form.handler
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action: dynamodb:GetItem
+              Resource: !GetAtt PostScheduleTable.Arn
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref PostScheduleTable
+      Events:
+        GetDetailEvent:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AccountApi
+            Path: /accounts/{accountId}
+            Method: GET
+
+  ListAccountsPageFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        <<: *esbuild-properties
+        EntryPoints:
+          - list-accounts-page.mjs
+    Properties:
+      Handler: list-accounts-page.handler
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action: dynamodb:Query
+              Resource: !Sub ${PostScheduleTable.Arn}/index/schedules
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref PostScheduleTable
+      Events:
+        GetAccountsEvent:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AccountApi
+            Path: /accounts
+            Method: GET
+
+  AddAccountFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        <<: *esbuild-properties
+        EntryPoints:
+          - add-account.mjs
+    Properties:
+      Handler: add-account.handler
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action: dynamodb:PutItem
+              Resource: !GetAtt PostScheduleTable.Arn
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref PostScheduleTable
+      Events:
+        AddEvent:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AccountApi
+            Path: /accounts
+            Method: POST
+
+  UpdateAccountFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        <<: *esbuild-properties
+        EntryPoints:
+          - update-account.mjs
+    Properties:
+      Handler: update-account.handler
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action: ssm:PutParameter
+              Resource: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/social-media/*
+            - Effect: Allow
+              Action: dynamodb:UpdateItem
+              Resource: !GetAtt PostScheduleTable.Arn
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref PostScheduleTable
+      Events:
+        UpdateEvent:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AccountApi
+            Path: /accounts/{accountId}
+            Method: PUT
+
+  SendTestPostFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        <<: *esbuild-properties
+        EntryPoints:
+          - send-test-post.mjs
+    Properties:
+      Handler: send-test-post.handler
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action: lambda:InvokeFunction
+              Resource: !GetAtt SendXPostFunction.Arn
+            - Effect: Allow
+              Action: dynamodb:GetItem
+              Resource: !GetAtt PostScheduleTable.Arn
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref PostScheduleTable
+          SEND_TWITTER_POST_ARN: !GetAtt SendXPostFunction.Arn
+      Events:
+        TestEvent:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AccountApi
+            Path: /accounts/{accountId}/messages
+            Method: POST
+
+  CaptureLinkedInTokenFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        <<: *esbuild-properties
+        EntryPoints:
+          - capture-linkedin-token.mjs
+    Properties:
+      Handler: capture-linkedin-token.handler
       Policies:
         - AWSLambdaBasicExecutionRole
         - Version: 2012-10-17
           Statement:
             - Effect: Allow
               Action:
-                - secretsmanager:GetSecretValue
-              Resource: !Ref ApiKeys
+                - ssm:GetParameter
+                - ssm:PutParameter
+              Resource: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/social-media/*
+            - Effect: Allow
+              Action: dynamodb:UpdateItem
+              Resource: !GetAtt PostScheduleTable.Arn
+            - Effect: Allow
+              Action: scheduler:CreateSchedule
+              Resource: !Sub arn:${AWS::Partition}:scheduler:${AWS::Region}:${AWS::AccountId}:schedule/token-expiration/*
       Environment:
         Variables:
-          SECRET_ID: !Ref ApiKeys
+          TABLE_NAME: !Ref PostScheduleTable
+          EXPIRE_LI_CREDENTIALS_STATE_MACHINE: !GetAtt ExpireLinkedInCredentialsStateMachine.Arn
+          EXPIRE_LI_CREDENTIALS_ROLE: !GetAtt ExpireLinkedInCredentialsSchedulerRole.Arn
+      Events:
+        AuthEvent:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AccountApi
+            Path: /linkedin/redirect
+            Method: GET
 
   SocialPostScheduleGroup:
     Type: AWS::Scheduler::ScheduleGroup
     Properties:
       Name: social
+
+  TokenExpirationScheduleGroup:
+    Type: AWS::Scheduler::ScheduleGroup
+    Properties:
+      Name: token-expiration
 
   ScheduleSocialStateMachine:
     Type: AWS::Serverless::StateMachine
@@ -154,6 +335,70 @@ Resources:
             Pattern:
               detail-type:
                 - Schedule Social Post
+
+  ExpireLinkedInCredentialsSchedulerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - scheduler.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: ExpireLISchedulerPolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action: states:StartExecution
+                Resource: !GetAtt ExpireLinkedInCredentialsStateMachine.Arn
+
+  ExpireCredentialsStateMachineLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: 3
+
+  ExpireLinkedInCredentialsStateMachine:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      Type: EXPRESS
+      Logging:
+        Level: ALL
+        IncludeExecutionData: True
+        Destinations:
+          - CloudWatchLogsLogGroup:
+              LogGroupArn: !GetAtt ExpireCredentialsStateMachineLogGroup.Arn
+      DefinitionUri: state-machines/expire-linkedin-credentials.asl.json
+      DefinitionSubstitutions:
+        DynamoDbGetItem: !Sub arn:${AWS::Partition}:states:::dynamodb:getItem
+        DynamoDbUpdateItem: !Sub arn:${AWS::Partition}:states:::dynamodb:updateItem
+        EventBridgePutEvents: !Sub arn:${AWS::Partition}:states:::events:putEvents
+        TableName: !Ref PostScheduleTable
+      Policies:
+        - Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action: events:PutEvents
+              Resource: !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:event-bus/default
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:UpdateItem
+              Resource: !GetAtt PostScheduleTable.Arn
+            - Effect: Allow
+              Action:
+                - logs:CreateLogDelivery
+                - logs:GetLogDelivery
+                - logs:UpdateLogDelivery
+                - logs:DeleteLogDelivery
+                - logs:ListLogDeliveries
+                - logs:PutResourcePolicy
+                - logs:DescribeResourcePolicies
+                - logs:DescribeLogGroups
+              Resource: "*"
 
   SendSocialStateMachine:
     Type: AWS::Serverless::StateMachine
@@ -229,11 +474,22 @@ Resources:
 
   CalculateScheduledTimeFunction:
     Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        <<: *esbuild-properties
+        EntryPoints:
+          - calculate-scheduled-time.mjs
     Properties:
-      CodeUri: functions\calculate-scheduled-time
+      Handler: calculate-scheduled-time.handler
       Timeout: 30
       Policies:
         - Statement:
             - Effect: Allow
               Action: 'bedrock:InvokeModel'
               Resource: '*'
+
+Outputs:
+  ApiBaseUrl:
+    Description: API Gateway endpoint for the account API
+    Value: !Sub 'https://${AccountApi}.execute-api.${AWS::Region}.amazonaws.com/v1'

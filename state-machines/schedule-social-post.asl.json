@@ -61,7 +61,7 @@
               },
               "ExpressionAttributeValues": {
                 ":type": {
-                  "S.$": "$.detail.platform"
+                  "S.$": "States.Format('{}#{}', $.detail.accountId, $.detail.platform)"
                 }
               }
             },
@@ -172,7 +172,7 @@
             "Type": "Task",
             "Next": "Update Schedule",
             "Parameters": {
-              "Name.$": "States.Format('{}-{}', $.detail.platform, $.referenceNumber)",
+              "Name.$": "States.Format('{}-{}-{}', $.detail.accountId, $.detail.platform, $.referenceNumber)",
               "GroupName": "social"
             },
             "Resource": "${SchedulerGetSchedule}",
@@ -196,7 +196,7 @@
                 "Mode": "FLEXIBLE",
                 "MaximumWindowInMinutes": 8
               },
-              "Name.$": "States.Format('{}-{}', $.detail.platform, $.referenceNumber)",
+              "Name.$": "States.Format('{}-{}-{}', $.detail.accountId, $.detail.platform, $.referenceNumber)",
               "GroupName": "social",
               "ScheduleExpression.$": "States.Format('at({})', $.scheduledDate)",
               "Target": {
@@ -208,7 +208,8 @@
                 "Input": {
                   "referenceNumber.$": "$.referenceNumber",
                   "message.$": "$.detail.message",
-                  "platform.$": "$.detail.platform"
+                  "platform.$": "$.detail.platform",
+                  "accountId.$": "$.detail.accountId"
                 }
               }
             },
@@ -239,7 +240,7 @@
                   "S": "post"
                 },
                 "type": {
-                  "S.$": "$.detail.platform"
+                  "S.$": "States.Format('{}#{}', $.detail.accountId, $.detail.platform)"
                 },
                 "sort": {
                   "S.$": "$.scheduledDate"
@@ -268,7 +269,7 @@
                   "S": "post"
                 },
                 "type": {
-                  "S.$": "$.detail.platform"
+                  "S.$": "States.Format('{}#{}', $.detail.accountId, $.detail.platform)"
                 },
                 "sort": {
                   "S.$": "$.scheduledDate"
@@ -290,7 +291,7 @@
                 "Mode": "FLEXIBLE",
                 "MaximumWindowInMinutes": 8
               },
-              "Name.$": "States.Format('{}-{}', $.detail.platform, $.referenceNumber)",
+              "Name.$": "States.Format('{}-{}-{}', $.detail.accountId, $.detail.platform, $.referenceNumber)",
               "GroupName": "social",
               "ScheduleExpression.$": "States.Format('at({})', $.scheduledDate)",
               "Target": {
@@ -302,7 +303,8 @@
                 "Input": {
                   "referenceNumber.$": "$.referenceNumber",
                   "message.$": "$.detail.message",
-                  "platform.$": "$.detail.platform"
+                  "platform.$": "$.detail.platform",
+                  "accountId.$": "$.detail.accountId"
                 }
               }
             },
@@ -318,7 +320,8 @@
                 {
                   "Detail": {
                     "referenceNumber.$": "$.referenceNumber",
-                    "scheduledDate.$": "$.scheduledDate"
+                    "scheduledDate.$": "$.scheduledDate",
+                    "accountId.$": "$.detail.accountId"
                   },
                   "DetailType": "Post Scheduled",
                   "Source": "SocialPostScheduler"

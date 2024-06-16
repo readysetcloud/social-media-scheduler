@@ -1,0 +1,25 @@
+{
+  "name": "serverless-social-post-scheduler",
+  "version": "1.0.0",
+  "description": "Schedules and sends social media posts",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "allenheltondev",
+  "license": "ISC",
+  "dependencies": {
+    "@aws-lambda-powertools/parameters": "^2.2.0",
+    "crypto-js": "^4.2.0",
+    "linkedin-api-client": "^0.3.0"
+  },
+  "devDependencies": {
+    "@aws-sdk/client-bedrock-runtime": "^3.598.0",
+    "@aws-sdk/client-dynamodb": "^3.598.0",
+    "@aws-sdk/client-eventbridge": "^3.598.0",
+    "@aws-sdk/client-lambda": "^3.598.0",
+    "@aws-sdk/client-scheduler": "^3.598.0",
+    "@aws-sdk/client-ssm": "^3.598.0",
+    "@aws-sdk/util-dynamodb": "^3.598.0"
+  }
+}

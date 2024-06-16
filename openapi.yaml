@@ -1,0 +1,255 @@
+openapi: 3.0.0
+info:
+  title: Social Media Configuration
+  description: Adds, updates, and lists social media accounts
+  version: 1.0.0
+tags:
+  - name: Account
+    description: |
+      Operations to manage maintenance of a social media account
+  - name: Auth
+    description: Operations to handle authN and authZ
+
+x-amazon-apigateway-cors:
+  allowOrigins:
+    - '*'
+  allowMethods:
+    - GET
+    - POST
+    - PUT
+  allowHeaders:
+    - authorization
+    - content-type
+  maxAge: 3600
+
+paths:
+  /accounts:
+    post:
+      summary: Add a new account
+      description: Create a new account for social media handling
+      tags:
+        - Account
+      responses:
+        201:
+          $ref: '#/components/responses/Created'
+        500:
+          $ref: '#/components/responses/InternalServerError'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AccountMetadata'
+    get:
+      summary: List accounts
+      description: Returns a page that lists accounts
+      tags:
+        - Account
+      responses:
+        200:
+          description: The request succeeded and the accounts are listed
+          content:
+            text/html:
+              schema:
+                type: string
+        404:
+          $ref: '#/components/responses/NotFound'
+        500:
+          $ref: '#/components/responses/InternalServerError'
+
+  /accounts/{accountId}:
+    parameters:
+      - $ref: '#/components/parameters/accountId'
+    get:
+      summary: Get account details
+      description: Returns a form for account configuration
+      tags:
+        - Account
+      responses:
+        200:
+          description: The request succeeded and the item is included in the response.
+          content:
+            text/html:
+              schema:
+                type: string
+        404:
+          $ref: '#/components/responses/NotFound'
+        500:
+          $ref: '#/components/responses/InternalServerError'
+
+    put:
+      summary: Update account information
+      description: Replaces all details for an existing account with the data passed in the request body
+      tags:
+        - Account
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AccountDetail'
+        required: true
+      responses:
+        204:
+          $ref: '#/components/responses/NoContentUpdate'
+        404:
+          $ref: '#/components/responses/NotFound'
+        500:
+          $ref: '#/components/responses/InternalServerError'
+
+  /accounts/{accountId}/messages:
+    parameters:
+      - $ref: '#/components/parameters/accountId'
+    post:
+      summary: Send a message
+      description: Sends a message to the specified account
+      tags:
+        - Account
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                message:
+                  type: string
+                  minLength: 1
+                platform:
+                  type: string
+                  enum: [twitter, linkedIn]
+              required:
+                - message
+                - platform
+      responses:
+        201:
+          description: The request succeeded and the message was sent
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  url:
+                    type: string
+        400:
+          $ref: '#/components/responses/ClientError'
+        404:
+          $ref: '#/components/responses/NotFound'
+        409:
+          $ref: '#/components/responses/Conflict'
+        500:
+          $ref: '#/components/responses/InternalServerError'
+
+  /linkedin/redirect:
+    get:
+      summary: Get capture linkedin auth redirect token
+      description: Saves access token from linkedin
+      tags:
+        - Auth
+      responses:
+        200:
+          description: The request succeeded and the access code was captured
+          content:
+            text/html:
+              schema:
+                type: string
+        500:
+          $ref: '#/components/responses/InternalServerError'
+
+components:
+  parameters:
+    accountId:
+      name: accountId
+      in: path
+      description: Identifier for an account
+      required: true
+      example: 09sl3415098gplmn
+      schema:
+        type: string
+
+  schemas:
+    AccountMetadata:
+      type: object
+      required:
+        - name
+        - id
+      properties:
+        name:
+          type: string
+        id:
+          type: string
+
+    AccountDetail:
+      type: object
+      properties:
+        twitterApiKey:
+          type: string
+        twitterApiKeySecret:
+          type: string
+        twitterAccessToken:
+          type: string
+        twitterAccessTokenSecret:
+          type: string
+        twitterBearerToken:
+          type: string
+
+  responses:
+    Created: #201
+      description: The request succeeded and created a new account
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              id:
+                type: string
+            required:
+              - id
+    NoContentUpdate: #204
+      description: The request succeeded and updated an existing item
+    ClientError: #400
+      description: The request was in an invalid format
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+                example: Could not perform operation with provided data
+            required:
+              - message
+    NotFound: #404
+      description: The requested item was not found
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+                example: Could not find an account with the specified id.
+            required:
+              - message
+    Conflict: #409
+      description: The requested item was not in the proper state
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+                example: The provided platform is not configured
+            required:
+              - message
+    InternalServerError: #500
+      description: The server encountered an unexpected condition which prevented it from fulfilling the request.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+                example: An error occurred saving the item.
+            required:
+              - message

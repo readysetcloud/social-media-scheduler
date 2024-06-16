@@ -1,16 +1,18 @@
-const { SecretsManagerClient, GetSecretValueCommand } = require('@aws-sdk/client-secrets-manager');
-const axios = require('axios').default;
-const CryptoJS = require('crypto-js');
+import { getParameter } from '@aws-lambda-powertools/parameters/ssm';
+import CryptoJS from 'crypto-js';
 
-const secrets = new SecretsManagerClient();
+let accounts = {};
 const postUrl = 'https://api.twitter.com/2/tweets';
-let cachedKeys;
 
-exports.handler = async (event) => {
+export const handler = async (state) => {
   try {
-    const keys = await getKeys();
+    let keys = await getAccountKeys(state.accountId);
+    if (typeof keys == 'string') {
+      keys = JSON.parse(keys);
+    }
     if (!keys.xApiKey || !keys.xApiKeySecret) {
       const err = 'Required secrets not found [xApiKey, xApiKeySecret]';
+      delete accounts[state.accountId];
       console.error(err);
       throw new Error(err);
     }
@@ -20,52 +22,36 @@ exports.handler = async (event) => {
     }
 
     const oauthHeader = getOauthHeader(keys);
-    const config = {
-      baseURL: postUrl,
+
+    const response = await fetch(postUrl, {
       method: 'POST',
       headers: {
         'Authorization': oauthHeader,
         'Content-type': 'application/json'
       },
-      data: {
-        text: event.message
-      },
-      responseType: 'json',
-      validateStatus: (status) => status < 400
-    };
-
-    const response = await axios.request(config);
-    return { id: response.data.data.id };
+      body: JSON.stringify({ text: state.message })
+    });
+    if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
+    const data = await response.json();
+    return { id: data.data.id };
   }
   catch (err) {
-    console.log(JSON.stringify(err));
+    console.error(JSON.stringify(err));
   }
 };
 
 const getBearerToken = async (apiKey, apiKeySecret) => {
-  const config = {
-    baseURL: 'https://api.twitter.com/oauth2/token',
+  const response = await fetch('https://api.twitter.com/oauth2/token', {
     method: 'POST',
-    auth: {
-      type: 'basic',
-      basic: {
-        username: apiKey,
-        password: apiKeySecret
-      }
-    },
     headers: {
+      'Authorization': 'Basic ' + Buffer.from(apiKey + ':' + apiKeySecret).toString('base64'),
       'Content-type': 'application/x-www-form-urlencoded; charset: utf-8'
     },
-    data: {
-      mode: 'urlencoded',
-      urlencoded: 'grant_type=client_credentials'
-    },
-    responseType: 'json',
-    validateStatus: (status) => status < 400
-  };
-
-  const response = await axios.request(config);
-  return response.data.access_token;
+    body: 'grant_type=client_credentials'
+  });
+  if (!response.ok) throw new Error(`HTTP error getting auth token! Status: ${response.status}`);
+  const data = await response.json();
+  return data.access_token;
 };
 
 const getOauthHeader = (keys) => {
@@ -104,11 +90,10 @@ const toArray = (object) => {
   Object.keys(object).forEach(key => {
     array.push(`${key}=${object[key]}`);
   });
-  return array
+  return array;
 };
 
 const getOauthNonce = () => {
-  // create random oauth_nonce string
   const random_source = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
   let oauth_nonce = '';
   for (let i = 0; i < 32; i++) {
@@ -118,14 +103,12 @@ const getOauthNonce = () => {
   return encodeURIComponent(CryptoJS.enc.Base64.stringify(oauth_nonce_array));
 };
 
-const getKeys = async () => {
-  if (cachedKeys) {
-    return cachedKeys;
-  } else {
-    const secretResponse = await secrets.send(new GetSecretValueCommand({ SecretId: process.env.SECRET_ID }));
-    if (secretResponse) {
-      cachedKeys = JSON.parse(secretResponse.SecretString);
-      return cachedKeys;
-    }
+const getAccountKeys = async (accountId) => {
+  if (!accounts.accountId) {
+    const parameterName = `/social-media/${accountId}`;
+    const keys = await getParameter(parameterName, { decrypt: true, transform: 'json' });
+    accounts.accountId = keys;
   }
+
+  return accounts.accountId;
 };

@@ -54,7 +54,8 @@
       "Parameters": {
         "FunctionName": "${SendTwitterPost}",
         "Payload": {
-          "message.$": "$.message"
+          "message.$": "$.message",
+          "accountId.$": "$.accountId"
         }
       },
       "Retry": [
@@ -88,7 +89,8 @@
           {
             "Detail": {
               "referenceNumber.$": "$$.Execution.Input.referenceNumber",
-              "postId.$": "$.id"
+              "postId.$": "$.id",
+              "accountId.$": "$$.Execution.Input.accountId"
             },
             "DetailType": "Social Post Sent",
             "Source": "SocialPostSender"
@@ -107,7 +109,8 @@
         "Entries": [
           {
             "Detail": {
-              "referenceNumber.$": "$$.Execution.Input.referenceNumber"
+              "referenceNumber.$": "$$.Execution.Input.referenceNumber",
+              "accountId.$": "$$.Execution.Input.accountId"
             },
             "DetailType": "Social Post Failed",
             "Source": "SocialPostSender"

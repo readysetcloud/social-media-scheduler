@@ -1,10 +1,12 @@
 import { DynamoDBClient, GetItemCommand, UpdateItemCommand } from "@aws-sdk/client-dynamodb";
 import { SSMClient, PutParameterCommand, DeleteParameterCommand } from "@aws-sdk/client-ssm";
+import { SchedulerClient, DeleteScheduleCommand } from '@aws-sdk/client-scheduler';
 import { marshall, unmarshall } from "@aws-sdk/util-dynamodb";
 import { jsonResponse } from "./utils/helpers.mjs";
 
 const ddb = new DynamoDBClient();
 const ssm = new SSMClient();
+const scheduler = new SchedulerClient();
 
 export const handler = async (event) => {
   try {
@@ -144,6 +146,14 @@ const handleLinkedInDetails = async (account, data) => {
     await ssm.send(new DeleteParameterCommand({
       Name: `/social-media/${account.pk}/linkedin`
     }));
+
+    try {
+      await scheduler.send(new DeleteScheduleCommand({
+        Name: `${accountId}-LI-TOKEN`
+      }));
+    } catch (err) {
+      console.warn(err);
+    }
   } else {
     const params = {
       TableName: process.env.TABLE_NAME,

@@ -212,16 +212,31 @@ components:
     AccountDetail:
       type: object
       properties:
-        twitterApiKey:
-          type: string
-        twitterApiKeySecret:
-          type: string
-        twitterAccessToken:
-          type: string
-        twitterAccessTokenSecret:
-          type: string
-        twitterBearerToken:
-          type: string
+        twitter:
+          type: object
+          properties:
+            apiKey:
+              type: string
+            apiKeySecret:
+              type: string
+            accessToken:
+              type: string
+            accessTokenSecret:
+              type: string
+            bearerToken:
+              type: string
+            removeCredentials:
+              type: boolean
+        linkedIn:
+          type: object
+          properties:
+            type:
+              type: string
+              enum: [personal, organization]
+            organizationId:
+              type: string
+            removeCredentials:
+              type: boolean
 
   responses:
     Created: #201

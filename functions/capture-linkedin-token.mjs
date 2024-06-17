@@ -1,5 +1,5 @@
 import { SSMClient, PutParameterCommand } from "@aws-sdk/client-ssm";
-import { SchedulerClient, CreateScheduleCommand } from '@aws-sdk/client-scheduler';
+import { SchedulerClient, CreateScheduleCommand, UpdateScheduleCommand } from '@aws-sdk/client-scheduler';
 import { DynamoDBClient, UpdateItemCommand } from "@aws-sdk/client-dynamodb";
 import { marshall } from "@aws-sdk/util-dynamodb";
 import { jsonResponse, getSecretValue } from "./utils/helpers.mjs";
@@ -24,7 +24,7 @@ export const handler = async (event) => {
     console.log(token);
     await ssm.send(new PutParameterCommand({
       Name: `/social-media/${accountId.toLowerCase()}/linkedin`,
-      Value: JSON.stringify({accessToken: token.access_token}),
+      Value: JSON.stringify({ accessToken: token.access_token }),
       Type: 'SecureString',
       Overwrite: true
     }));
@@ -37,13 +37,15 @@ export const handler = async (event) => {
           sk: 'account'
         }),
       ConditionExpression: 'attribute_exists(pk)',
-      UpdateExpression: 'SET #linkedIn.#status = :status',
+      UpdateExpression: 'SET #linkedIn.#status = :status, #linkedIn.#statusTimestamp = :timestamp',
       ExpressionAttributeNames: {
         '#linkedIn': 'linkedIn',
-        '#status': 'status'
+        '#status': 'status',
+        '#statusTimestamp': 'statusTimestamp'
       },
       ExpressionAttributeValues: marshall({
-        ':status': 'active'
+        ':status': 'active',
+        ':timestamp': new Date().toISOString()
       })
     }));
 
@@ -64,8 +66,7 @@ export const handler = async (event) => {
 const setupAuthTokenExpirationTimer = async (accountId, expiresInSeconds) => {
   const expirationDateTimer = new Date();
   expirationDateTimer.setSeconds(expirationDateTimer.getSeconds() + expiresInSeconds - (60 * 60 * 24));
-
-  await scheduler.send(new CreateScheduleCommand({
+  const params = {
     Name: `${accountId}-LI-TOKEN`,
     ActionAfterCompletion: 'DELETE',
     FlexibleTimeWindow: {
@@ -80,5 +81,10 @@ const setupAuthTokenExpirationTimer = async (accountId, expiresInSeconds) => {
       })
     },
     ScheduleExpression: `at(${expirationDateTimer.toISOString().split('.')[0]})`,
-  }));
+  };
+  try {
+    await scheduler.send(new CreateScheduleCommand());
+  } catch (err) {
+    await scheduler.send(new UpdateScheduleCommand(params));
+  }
 };

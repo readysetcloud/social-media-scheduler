@@ -66,6 +66,7 @@ const getFormHtml = (account) => `
     padding: 20px;
     border-radius: 8px;
     box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    max-width: 615px;
   }
   h2 {
     text-align: center;
@@ -92,9 +93,21 @@ const getFormHtml = (account) => `
     justify-content: space-between;
     align-items: center;
   }
+  .flex-side-by-side {
+    display: flex;
+    flex-direction: row;
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 10px;
+  }
   .help-text {
     font-size: .9rem;
     color: slategray;
+    margin-bottom: 10px;
+  }
+  .hint-text {
+    text-decoration: italics;
+    font-size: .95rem;
     margin-bottom: 10px;
   }
   label {
@@ -143,7 +156,7 @@ const getFormHtml = (account) => `
         <label for="handle">Handle</label>
         <input id="handle" name="handle" value="${account.twitter?.handle ?? ''}" required>
       </div>
-      ${account.twitter?.status == 'active' ? `<i>Credentials are saved in the system but are omitted here for security.</i>
+      ${account.twitter?.status == 'active' ? `<div class="hint-text">Credentials are saved in the system but are omitted here for security.</div>
         <div class="top-margin">
           <input type="checkbox" id="twitterRemoveCredentials" name="twitterRemoveCredentials" value="false">
           <span>Remove saved credentials</span>
@@ -174,14 +187,31 @@ const getFormHtml = (account) => `
 
     <fieldset>
       <legend>LinkedIn</legend>
-      <div class="flex-group">
-        <div class="form-group">
-          <label for="linkedInEntity">Organization Id</label>
-          <input id="linkedInEntity" name="linkedInEntity" value="${account.linkedIn?.organizationId ?? ''}" required>
+      ${(account.linkedIn?.status == 'active' && account.linkedIn?.statusTimestamp) ? `
+        <div class="help-text">This account was authenticated at ${account.linkedIn.statusTimestamp}
+        </div><hr/>` : ''}
+      ${account.linkedIn?.status == 'expired' ? `
+        <div class="help-text">Your authentication to this account is expired. Please re-authenticate.
+        </div><hr/>`: ''}
+      <div class="flex-side-by-side">
+        <label><input type="radio" name="linkedInType" value="organization" onclick="toggleOrganizationField(true)" checked> Organization</label>
+        <label><input type="radio" name="linkedInType" value="personal" onclick="toggleOrganizationField(false)"> Personal</label>
+      </div>
+      <div id="organizationField">
+        <div class="hint-text">Your organization id is found in the address bar when viewing the company page on LinkedIn. Look for it at "/company/{orgId}".</div>
+        <div class="flex-group">
+          <div class="form-group">
+            <label for="linkedInEntity">Organization Id</label>
+            <input id="linkedInEntity" name="linkedInEntity" value="${account.linkedIn?.organizationId ?? ''}" required>
+          </div>
+          <div>
+          ${getLinkedInActionButton(account.linkedIn)}
+          </div>
         </div>
-        <div>
+      </div>
+      <div id="personalField" style="display:none;">
+      <div class="hint-text">When publishing posts to LinkedIn, they will be created under your personal account.</div>
         ${getLinkedInActionButton(account.linkedIn)}
-        </div>
       </div>
     </fieldset>
     <input type="submit" value="Submit" onclick="submitForm(event)">
@@ -202,7 +232,8 @@ const getFormHtml = (account) => `
           removeCredentials: formData.get('twitterRemoveCredentials')
         },
         linkedIn: {
-          organizationId: formData.get('linkedInEntity')
+          organizationId: formData.get('linkedInEntity'),
+          type: formData.get('linkedInType')
         }
       };
 
@@ -264,6 +295,17 @@ const getFormHtml = (account) => `
         console.error('Error:', error);
         alert('Error revoking LinkedIn credentials');
       });
+    }
+    function toggleOrganizationField(show) {
+      const orgField = document.getElementById('organizationField');
+      const personalField = document.getElementById('personalField');
+      if (show) {
+        orgField.style.display = 'block';
+        personalField.style.display = 'none';
+      } else {
+        orgField.style.display = 'none';
+        personalField.style.display = 'block';
+      }
     }
   </script>
 </body>

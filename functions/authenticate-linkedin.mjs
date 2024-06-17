@@ -31,17 +31,36 @@ export const handler = async (event) => {
 
     const origin = event.headers.origin ?? event.headers.Origin;
     const redirectUrl = `${origin}/v1/linkedin/redirect`;
-    console.log(redirectUrl);
+    const linkedInValues = await getTypeValues(account.linkedIn.type);
     const authClient = new AuthClient({
-      clientId: await getSecretValue('clientId'),
-      clientSecret: await getSecretValue('clientSecret'),
+      clientId: linkedInValues.clientId,
+      clientSecret: linkedInValues.clientSecret,
       redirectUrl
     });
 
-    const authUrl = authClient.generateMemberAuthorizationUrl(['w_member_social'], `${redirectUrl}|${accountId}`);
+    const authUrl = authClient.generateMemberAuthorizationUrl(linkedInValues.scopes, `${redirectUrl}|${accountId}`);
     return jsonResponse(200, { url: authUrl });
   } catch (err) {
     console.error(err);
     return jsonResponse(500, { message: 'Something went wrong' });
+  }
+};
+
+const getTypeValues = async (type) => {
+  switch (type) {
+    case 'personal':
+      return {
+        clientId: await getSecretValue('personalClientId'),
+        clientSecret: await getSecretValue('personalClientSecret'),
+        scopes: ['w_member_social']
+      };
+    case 'organization':
+      return {
+        clientId: await getSecretValue('organizationClientId'),
+        clientSecret: await getSecretValue('organizationClientSecret'),
+        scopes: ['r_basicprofile', 'r_organization_social']
+      };
+    default:
+      return {};
   }
 };

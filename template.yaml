@@ -4,11 +4,19 @@ Description: >
   Serverless Social Post Scheduler - Schedule and Track Social Media Posts with Events
 
 Parameters:
-  LinkedInClientId:
+  LinkedInClientIdPersonal:
     Type: String
     Default: ''
     NoEcho: true
-  LinkedInClientSecret:
+  LinkedInClientSecretPersonal:
+    Type: String
+    Default: ''
+    NoEcho: true
+  LinkedInClientIdOrganization:
+    Type: String
+    Default: ''
+    NoEcho: true
+  LinkedInClientSecretOrganization:
     Type: String
     Default: ''
     NoEcho: true
@@ -87,11 +95,15 @@ Resources:
         Fn::Sub:
           - |-
             {
-              "clientId": "${clientId}",
-              "clientSecret": "${clientSecret}"
+              "personalClientId": "${personalClientId}",
+              "personalClientSecret": "${personalClientSecret}",
+              "organizationClientId": "${organizationClientId}",
+              "organizationClientSecret": "${organizationClientSecret}"
             }
-          - clientId: !Ref LinkedInClientId
-            clientSecret: !Ref LinkedInClientSecret
+          - personalClientId: !Ref LinkedInClientIdPersonal
+            personalClientSecret: !Ref LinkedInClientSecretPersonal
+            organizationClientId: !Ref LinkedInClientIdOrganization
+            organizationClientSecret: !Ref LinkedInClientSecretOrganization
 
   AuthenticateLinkedInFunction:
     Type: AWS::Serverless::Function
@@ -251,6 +263,9 @@ Resources:
                 - dynamodb:UpdateItem
                 - dynamodb:GetItem
               Resource: !GetAtt PostScheduleTable.Arn
+            - Effect: Allow
+              Action: scheduler:DeleteSchedule
+              Resource: !Sub arn:${AWS::Partition}:scheduler:${AWS::Region}:${AWS::AccountId}:schedule/token-expiration/*
       Environment:
         Variables:
           TABLE_NAME: !Ref PostScheduleTable
@@ -318,7 +333,9 @@ Resources:
               Action: dynamodb:UpdateItem
               Resource: !GetAtt PostScheduleTable.Arn
             - Effect: Allow
-              Action: scheduler:CreateSchedule
+              Action:
+                - scheduler:CreateSchedule
+                - scheduler:UpdateSchedule
               Resource: !Sub arn:${AWS::Partition}:scheduler:${AWS::Region}:${AWS::AccountId}:schedule/token-expiration/*
             - Effect: Allow
               Action: iam:PassRole

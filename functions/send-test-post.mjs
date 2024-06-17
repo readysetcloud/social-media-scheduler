@@ -49,31 +49,30 @@ export const handler = async (event) => {
 };
 
 const sendTweet = async (account, message) => {
-  if (!account.hasTwitter) return;
+  if (account.twitter?.status == 'active') {
+    const response = await lambda.send(new InvokeCommand({
+      FunctionName: process.env.SEND_TWITTER_POST_ARN,
+      Payload: JSON.stringify({
+        accountId: account.pk,
+        message
+      })
+    }));
 
-  const response = await lambda.send(new InvokeCommand({
-    FunctionName: process.env.SEND_TWITTER_POST_ARN,
-    Payload: JSON.stringify({
-      accountId: account.pk,
-      message
-    })
-  }));
-  console.log(response);
-  const data = JSON.parse(Buffer.from(response.Payload).toString());
-  console.log(data);
-  return `https://x.com/${account.twitter.handle}/status/${data.id}`;
+    const data = JSON.parse(Buffer.from(response.Payload).toString());
+    return `https://x.com/${account.twitter.handle}/status/${data.id}`;
+  }
 };
 
 const sendLinkedInPost = async (account, message) => {
-  if (!account.hasLinkedIn) return;
-
-  const response = await lambda.send(new InvokeCommand({
-    FunctionName: process.env.SEND_LINKEDIN_POST_ARN,
-    Payload: JSON.stringify({
-      accountId: account.pk,
-      message
-    })
-  }));
-  const data = JSON.parse(Buffer.from(response.Payload).toString());
-  return `https://linkedin.com/posts/${data.url}`;
+  if (account?.linkedIn?.status == 'active') {
+    const response = await lambda.send(new InvokeCommand({
+      FunctionName: process.env.SEND_LINKEDIN_POST_ARN,
+      Payload: JSON.stringify({
+        accountId: account.pk,
+        message
+      })
+    }));
+    const data = JSON.parse(Buffer.from(response.Payload).toString());
+    return `https://linkedin.com/posts/${data.url}`;
+  }
 };

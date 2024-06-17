@@ -1,5 +1,5 @@
 import { DynamoDBClient, GetItemCommand } from "@aws-sdk/client-dynamodb";
-import { marshall } from "@aws-sdk/util-dynamodb";
+import { marshall, unmarshall } from "@aws-sdk/util-dynamodb";
 
 const ddb = new DynamoDBClient();
 
@@ -7,14 +7,14 @@ export const handler = async (event) => {
   try {
     let { accountId } = event.pathParameters;
     accountId = accountId.toLowerCase();
-    const data = await ddb.send(new GetItemCommand({
+    let account = await ddb.send(new GetItemCommand({
       TableName: process.env.TABLE_NAME,
       Key: marshall({
         pk: accountId,
         sk: 'account'
       })
     }));
-    if (!data.Item) {
+    if (!account.Item) {
       return {
         statusCode: 404,
         headers: {
@@ -22,10 +22,11 @@ export const handler = async (event) => {
         },
         body: JSON.stringify({ message: 'Account not found' })
       };
+    } else {
+      account = unmarshall(account.Item);
     }
 
-
-    const form = getFormHtml(data.Item.name.S, accountId);
+    const form = getFormHtml(account);
     return {
       statusCode: 200,
       headers: {
@@ -45,13 +46,13 @@ export const handler = async (event) => {
   }
 };
 
-const getFormHtml = (name, id) => `
+const getFormHtml = (account) => `
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Configure ${name} API Keys</title>
+<title>Configure ${account.name} API Keys</title>
 <style>
   body {
     font-family: Arial, sans-serif;
@@ -83,6 +84,19 @@ const getFormHtml = (name, id) => `
   .form-group {
     margin-bottom: 15px;
   }
+  .top-margin {
+    margin-top: 15px;
+  }
+  .flex-group {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .help-text {
+    font-size: .9rem;
+    color: slategray;
+    margin-bottom: 10px;
+  }
   label {
     display: block;
     margin-bottom: 5px;
@@ -106,14 +120,36 @@ const getFormHtml = (name, id) => `
   input[type="submit"]:hover {
     background-color: #250083;
   }
+  button {
+    background-color: #A238FF;
+    color: white;
+    border: none;
+    cursor: pointer;
+    border-radius: 5px;
+    padding: 10px;
+  }
+  button:hover {
+    background-color: #250083;
+  }
 </style>
 </head>
 <body>
   <form id="apiKeysForm">
-    <h2>Configure ${name} API Keys</h2>
+    <h2>Configure ${account.name} API Keys</h2>
     <fieldset>
       <legend>Twitter</legend>
-      <p>You can register for a <a href="https://developer.twitter.com/en/portal/petition/essential/terms?plan=free">Twitter Developer account</a> to get the info required for this form.</p>
+      <div class="help-text">You can register for a <a href="https://developer.twitter.com/en/portal/petition/essential/terms?plan=free">Twitter Developer account</a> to get the info required for this form.</div>
+      <div class="form-group">
+        <label for="handle">Handle</label>
+        <input id="handle" name="handle" value="${account.twitter?.handle ?? ''}" required>
+      </div>
+      ${account.twitter?.status == 'active' ? `<i>Credentials are saved in the system but are omitted here for security.</i>
+        <div class="top-margin">
+          <input type="checkbox" id="twitterRemoveCredentials" name="twitterRemoveCredentials" value="false">
+          <span>Remove saved credentials</span>
+        </div>
+        <hr/>
+        ` : ''}
       <div class="form-group">
         <label for="apiKey">API Key</label>
         <input type="password" id="apiKey" name="apiKey" required>
@@ -135,6 +171,19 @@ const getFormHtml = (name, id) => `
         <input type="password" id="accessTokenSecret" name="accessTokenSecret" required>
       </div>
     </fieldset>
+
+    <fieldset>
+      <legend>LinkedIn</legend>
+      <div class="flex-group">
+        <div class="form-group">
+          <label for="linkedInEntity">Organization Id</label>
+          <input id="linkedInEntity" name="linkedInEntity" value="${account.linkedIn?.organizationId ?? ''}" required>
+        </div>
+        <div>
+        ${getLinkedInActionButton(account.linkedIn)}
+        </div>
+      </div>
+    </fieldset>
     <input type="submit" value="Submit" onclick="submitForm(event)">
   </form>
   <script>
@@ -142,17 +191,28 @@ const getFormHtml = (name, id) => `
       event.preventDefault();
       const form = document.getElementById('apiKeysForm');
       const formData = new FormData(form);
-      const data = {};
-      formData.forEach((value, key) => { data[key] = value; });
+      const data = {
+        twitter: {
+          apiKey: formData.get('apiKey'),
+          apiKeySecret: formData.get('apiKeySecret'),
+          bearerToken: formData.get('bearerToken'),
+          handle: formData.get('handle'),
+          accessToken: formData.get('accessToken'),
+          accessTokenSecret: formData.get('accessTokenSecret'),
+          removeCredentials: formData.get('twitterRemoveCredentials')
+        },
+        linkedIn: {
+          organizationId: formData.get('linkedInEntity')
+        }
+      };
 
-      fetch('./${id}', {
+      fetch('./${account.pk}', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(data)
       })
-      .then(response => response.json())
       .then(data => {
         console.log('Success:', data);
         window.location.href = '/v1/accounts';
@@ -162,8 +222,67 @@ const getFormHtml = (name, id) => `
         alert('Error submitting form');
       });
     }
+
+    function authenticateLinkedIn() {
+      const linkedInEntity = document.getElementById('linkedInEntity').value;
+      fetch('/v1/linkedin/authenticate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ accountId: "${account.pk}" })
+      })
+      .then(response => response.json())
+      .then(data => {
+        window.location.href = data.url;
+      })
+      .catch((error) => {
+        console.error('Error:', error);
+        alert('Error authenticating LinkedIn');
+      });
+    }
+
+    function revokeLinkedIn() {
+      const data = {
+        linkedIn: {
+          removeCredentials: true
+        }
+      };
+
+      fetch('./${account.pk}', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data)
+      })
+      .then(data => {
+        console.log('Success:', data);
+        window.location.reload();
+      })
+      .catch((error) => {
+        console.error('Error:', error);
+        alert('Error revoking LinkedIn credentials');
+      });
+    }
   </script>
 </body>
 </html>
 `;
+const getLinkedInActionButton = (linkedIn) => {
+  if (linkedIn?.status == 'active') {
+    return `<button type="button" class="btn btn-primary" onClick="revokeLinkedIn()">
+      Revoke
+    </button>`;
+  } else if (linkedIn?.status == 'expired') {
+    return `<button type="button" class="btn btn-primary" onClick="authenticateLinkedIn()">
+    Re-authenticate
+  </button>`;
+  }
+  else {
+    return `<button type="button" class="btn btn-primary" onClick="authenticateLinkedIn()">
+      Authenticate
+    </button>`;
+  }
+};
 

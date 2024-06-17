@@ -3,6 +3,16 @@ Transform: AWS::Serverless-2016-10-31
 Description: >
   Serverless Social Post Scheduler - Schedule and Track Social Media Posts with Events
 
+Parameters:
+  LinkedInClientId:
+    Type: String
+    Default: ''
+    NoEcho: true
+  LinkedInClientSecret:
+    Type: String
+    Default: ''
+    NoEcho: true
+
 Metadata:
   esbuild-properties: &esbuild-properties
     Format: esm
@@ -69,6 +79,51 @@ Resources:
               KeyType: RANGE
           Projection:
             ProjectionType: ALL
+
+  LinkedInSecrets:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      SecretString:
+        Fn::Sub:
+          - |-
+            {
+              "clientId": "${clientId}",
+              "clientSecret": "${clientSecret}"
+            }
+          - clientId: !Ref LinkedInClientId
+            clientSecret: !Ref LinkedInClientSecret
+
+  AuthenticateLinkedInFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        <<: *esbuild-properties
+        EntryPoints:
+          - authenticate-linkedin.mjs
+    Properties:
+      Handler: authenticate-linkedin.handler
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action: secretsmanager:GetSecretValue
+              Resource: !Ref LinkedInSecrets
+            - Effect: Allow
+              Action: dynamodb:GetItem
+              Resource: !GetAtt PostScheduleTable.Arn
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref PostScheduleTable
+          SECRET_ID: !Ref LinkedInSecrets
+      Events:
+        AuthEvent:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AccountApi
+            Path: /linkedin/authenticate
+            Method: POST
 
   SendXPostFunction:
     Type: AWS::Serverless::Function
@@ -187,10 +242,14 @@ Resources:
         - Version: 2012-10-17
           Statement:
             - Effect: Allow
-              Action: ssm:PutParameter
+              Action:
+                - ssm:PutParameter
+                - ssm:DeleteParameter
               Resource: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/social-media/*
             - Effect: Allow
-              Action: dynamodb:UpdateItem
+              Action:
+                - dynamodb:UpdateItem
+                - dynamodb:GetItem
               Resource: !GetAtt PostScheduleTable.Arn
       Environment:
         Variables:
@@ -250,19 +309,24 @@ Resources:
         - Version: 2012-10-17
           Statement:
             - Effect: Allow
-              Action:
-                - ssm:GetParameter
-                - ssm:PutParameter
+              Action: ssm:PutParameter
               Resource: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/social-media/*
+            - Effect: Allow
+              Action: secretsmanager:GetSecretValue
+              Resource: !Ref LinkedInSecrets
             - Effect: Allow
               Action: dynamodb:UpdateItem
               Resource: !GetAtt PostScheduleTable.Arn
             - Effect: Allow
               Action: scheduler:CreateSchedule
               Resource: !Sub arn:${AWS::Partition}:scheduler:${AWS::Region}:${AWS::AccountId}:schedule/token-expiration/*
+            - Effect: Allow
+              Action: iam:PassRole
+              Resource: !GetAtt ExpireLinkedInCredentialsSchedulerRole.Arn
       Environment:
         Variables:
           TABLE_NAME: !Ref PostScheduleTable
+          SECRET_ID: !Ref LinkedInSecrets
           EXPIRE_LI_CREDENTIALS_STATE_MACHINE: !GetAtt ExpireLinkedInCredentialsStateMachine.Arn
           EXPIRE_LI_CREDENTIALS_ROLE: !GetAtt ExpireLinkedInCredentialsSchedulerRole.Arn
       Events:

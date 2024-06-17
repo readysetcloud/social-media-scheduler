@@ -10,15 +10,15 @@ export const handler = async (state) => {
     if (typeof keys == 'string') {
       keys = JSON.parse(keys);
     }
-    if (!keys.xApiKey || !keys.xApiKeySecret) {
+    if (!keys.apiKey || !keys.apiKeySecret) {
       const err = 'Required secrets not found [xApiKey, xApiKeySecret]';
       delete accounts[state.accountId];
       console.error(err);
       throw new Error(err);
     }
 
-    if (!keys.xBearerToken) {
-      keys.xBearerToken = await getBearerToken(keys.xApiKey, keys.xApiKeySecret);
+    if (!keys.bearerToken) {
+      keys.bearerToken = await getBearerToken(keys.apiKey, keys.apiKeySecret);
     }
 
     const oauthHeader = getOauthHeader(keys);
@@ -55,10 +55,10 @@ const getBearerToken = async (apiKey, apiKeySecret) => {
 };
 
 const getOauthHeader = (keys) => {
-  const oauth_consumer_key = keys.xApiKey;
-  const oauth_consumer_secret = keys.xApiKeySecret;
-  const oauth_token = keys.xAccessToken;
-  const oauth_secret = keys.xAccessTokenSecret;
+  const oauth_consumer_key = keys.apiKey;
+  const oauth_consumer_secret = keys.apiKeySecret;
+  const oauth_token = keys.accessToken;
+  const oauth_secret = keys.accessTokenSecret;
   const oauth_signing_key = `${oauth_consumer_secret}&${oauth_secret}`;
 
   const oauthParams = {
@@ -105,7 +105,7 @@ const getOauthNonce = () => {
 
 const getAccountKeys = async (accountId) => {
   if (!accounts.accountId) {
-    const parameterName = `/social-media/${accountId}`;
+    const parameterName = `/social-media/${accountId}/twitter`;
     const keys = await getParameter(parameterName, { decrypt: true, transform: 'json' });
     accounts.accountId = keys;
   }

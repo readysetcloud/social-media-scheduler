@@ -154,6 +154,38 @@ paths:
         500:
           $ref: '#/components/responses/InternalServerError'
 
+  /linkedin/authenticate:
+    post:
+      summary: Authenticate integration with LinkedIn
+      description: Go through 3-legged OAuth flow to authenticate with LinkedIn
+      tags:
+        - Auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                accountId:
+                  type: string
+                  minLength: 1
+              required:
+                - accountId
+      responses:
+        200:
+          description: The request succeeded and an auth url is returned
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  url:
+                    type: string
+        404:
+          $ref: '#/components/responses/NotFound'
+        500:
+          $ref: '#/components/responses/InternalServerError'
+
 components:
   parameters:
     accountId:

@@ -15,7 +15,9 @@ export const handler = async (event) => {
         name: data.name,
         createdAt: new Date().toISOString(),
         type: 'account',
-        sort: data.name
+        sort: data.name,
+        twitter: {},
+        linkedIn: {}
       })
     }));
 

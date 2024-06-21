@@ -25,22 +25,97 @@
         {
           "And": [
             {
-              "Variable": "$.platform",
+              "Variable": "$.detail.platform",
               "IsPresent": true
             },
             {
-              "Variable": "$.platform",
+              "Variable": "$.detail.platform",
               "IsString": true
             },
             {
-              "Variable": "$.platform",
+              "Variable": "$.detail.platform",
               "StringEquals": "twitter"
             }
           ],
-          "Next": "Send Twitter Post"
+          "Next": "Has Twitter Image?"
         }
       ],
       "Default": "Not Supported"
+    },
+    "Has Twitter Image?": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.detail.image",
+          "IsPresent": true,
+          "Next": "Upload Image to Twitter"
+        }
+      ],
+      "Default": "Send Twitter Post"
+    },
+    "Upload Image to Twitter": {
+      "Type": "Task",
+      "Resource": "${LambdaInvoke}",
+      "Parameters": {
+        "FunctionName": "${UploadImageToTwitter}",
+        "Payload": {
+          "accountId.$": "$.detail.accountId",
+          "image.$": "$.detail.image"
+        }
+      },
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException",
+            "Lambda.TooManyRequestsException"
+          ],
+          "IntervalSeconds": 1,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
+      "ResultPath": "$.media",
+      "ResultSelector": {
+        "id.$": "$.Payload.mediaId"
+      },
+      "Next": "Send Twitter Post With Image"
+    },
+    "Send Twitter Post With Image": {
+      "Type": "Task",
+      "Resource": "${LambdaInvoke}",
+      "OutputPath": "$.Payload",
+      "Parameters": {
+        "FunctionName": "${SendTwitterPost}",
+        "Payload": {
+          "message.$": "$.detail.message",
+          "accountId.$": "$.detail.accountId",
+          "mediaId.$": "$.media.id"
+        }
+      },
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException",
+            "Lambda.TooManyRequestsException"
+          ],
+          "IntervalSeconds": 1,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "Next": "Send Social Post Failed Event"
+        }
+      ],
+      "Next": "Send Social Post Sent Event"
     },
     "Not Supported": {
       "Type": "Fail",
@@ -54,8 +129,8 @@
       "Parameters": {
         "FunctionName": "${SendTwitterPost}",
         "Payload": {
-          "message.$": "$.message",
-          "accountId.$": "$.accountId"
+          "message.$": "$.detail.message",
+          "accountId.$": "$.detail.accountId"
         }
       },
       "Retry": [
@@ -90,7 +165,7 @@
             "Detail": {
               "referenceNumber.$": "$$.Execution.Input.referenceNumber",
               "postId.$": "$.id",
-              "accountId.$": "$$.Execution.Input.accountId"
+              "accountId.$": "$$.Execution.Input.detail.accountId"
             },
             "DetailType": "Social Post Sent",
             "Source": "SocialPostSender"
@@ -110,7 +185,7 @@
           {
             "Detail": {
               "referenceNumber.$": "$$.Execution.Input.referenceNumber",
-              "accountId.$": "$$.Execution.Input.accountId"
+              "accountId.$": "$$.Execution.Input.detail.accountId"
             },
             "DetailType": "Social Post Failed",
             "Source": "SocialPostSender"

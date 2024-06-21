@@ -56,21 +56,23 @@ const handleTwitterDetails = async (account, data) => {
       Name: `/social-media/${account.pk}/twitter`
     }));
   } else if (data.handle && data.apiKey && data.apiKeySecret && data.accessToken && data.accessTokenSecret) {
+
+  console.log(data)
     await ddb.send(new UpdateItemCommand({
       TableName: process.env.TABLE_NAME,
       Key: marshall({
         pk: account.pk,
         sk: account.sk
       }),
-      UpdateExpression: 'SET #twitter.#handle = :handle, #twitter.#status = :status',
+      UpdateExpression: 'SET #twitter = :twitter',
       ExpressionAttributeNames: {
-        '#twitter': 'twitter',
-        '#handle': 'handle',
-        '#status': 'status'
+        '#twitter': 'twitter'
       },
       ExpressionAttributeValues: marshall({
-        ':handle': data.handle,
-        ':status': 'active'
+        ':twitter': {
+          handle: data.handle,
+          status: 'active',
+        }
       })
     }));
 

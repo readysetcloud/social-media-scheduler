@@ -207,9 +207,7 @@
                 },
                 "Input": {
                   "referenceNumber.$": "$.referenceNumber",
-                  "message.$": "$.detail.message",
-                  "platform.$": "$.detail.platform",
-                  "accountId.$": "$.detail.accountId"
+                  "detail.$": "$.detail"
                 }
               }
             },
@@ -302,9 +300,7 @@
                 },
                 "Input": {
                   "referenceNumber.$": "$.referenceNumber",
-                  "message.$": "$.detail.message",
-                  "platform.$": "$.detail.platform",
-                  "accountId.$": "$.detail.accountId"
+                  "detail.$": "$.detail"
                 }
               }
             },

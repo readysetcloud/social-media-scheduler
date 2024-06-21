@@ -11,7 +11,8 @@
   "dependencies": {
     "@aws-lambda-powertools/parameters": "^2.2.0",
     "crypto-js": "^4.2.0",
-    "linkedin-api-client": "^0.3.0"
+    "linkedin-api-client": "^0.3.0",
+    "twitter-api-v2": "^1.17.1"
   },
   "devDependencies": {
     "@aws-sdk/client-bedrock-runtime": "^3.598.0",

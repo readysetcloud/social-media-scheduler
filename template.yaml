@@ -155,6 +155,24 @@ Resources:
               Action: ssm:GetParameter
               Resource: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/social-media/*
 
+  UploadMediaToXFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        <<: *esbuild-properties
+        EntryPoints:
+          - upload-media-to-x.mjs
+    Properties:
+      Handler: upload-media-to-x.handler
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action: ssm:GetParameter
+              Resource: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/social-media/*
+
   GetAccountConfigFormFunction:
     Type: AWS::Serverless::Function
     Metadata:
@@ -489,6 +507,7 @@ Resources:
       DefinitionSubstitutions:
         LambdaInvoke: !Sub arn:${AWS::Partition}:states:::lambda:invoke
         SendTwitterPost: !GetAtt SendXPostFunction.Arn
+        UploadImageToTwitter: !GetAtt UploadMediaToXFunction.Arn
         EventBridgePutEvents: !Sub arn:${AWS::Partition}:states:::events:putEvents
         DynamoDbDeleteItem: !Sub arn:${AWS::Partition}:states:::dynamodb:deleteItem
         TableName: !Ref PostScheduleTable
@@ -497,7 +516,9 @@ Resources:
           Statement:
             - Effect: Allow
               Action: lambda:InvokeFunction
-              Resource: !GetAtt SendXPostFunction.Arn
+              Resource:
+                - !GetAtt SendXPostFunction.Arn
+                - !GetAtt UploadMediaToXFunction.Arn
             - Effect: Allow
               Action: events:PutEvents
               Resource: !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:event-bus/default

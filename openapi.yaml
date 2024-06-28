@@ -115,7 +115,7 @@ paths:
                   minLength: 1
                 platform:
                   type: string
-                  enum: [twitter, linkedIn]
+                  enum: [twitter, linkedIn, discord]
               required:
                 - message
                 - platform
@@ -237,6 +237,11 @@ components:
               type: string
             removeCredentials:
               type: boolean
+        discord:
+          type: object
+          properties:
+            channel:
+              type: string
 
   responses:
     Created: #201

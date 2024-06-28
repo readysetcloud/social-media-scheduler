@@ -17,7 +17,8 @@ export const handler = async (event) => {
         type: 'account',
         sort: data.name,
         twitter: {},
-        linkedIn: {}
+        linkedIn: {},
+        discord: {}
       })
     }));
 

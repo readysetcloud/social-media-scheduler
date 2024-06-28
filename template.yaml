@@ -20,6 +20,10 @@ Parameters:
     Type: String
     Default: ''
     NoEcho: true
+  DiscordToken:
+    Type: String
+    Default: ''
+    NoEcho: true
 
 Metadata:
   esbuild-properties: &esbuild-properties
@@ -98,12 +102,14 @@ Resources:
               "personalClientId": "${personalClientId}",
               "personalClientSecret": "${personalClientSecret}",
               "organizationClientId": "${organizationClientId}",
-              "organizationClientSecret": "${organizationClientSecret}"
+              "organizationClientSecret": "${organizationClientSecret}",
+              "discord": "${discordToken}"
             }
           - personalClientId: !Ref LinkedInClientIdPersonal
             personalClientSecret: !Ref LinkedInClientSecretPersonal
             organizationClientId: !Ref LinkedInClientIdOrganization
             organizationClientSecret: !Ref LinkedInClientSecretOrganization
+            discordToken: !Ref DiscordToken
 
   AuthenticateLinkedInFunction:
     Type: AWS::Serverless::Function
@@ -172,6 +178,31 @@ Resources:
             - Effect: Allow
               Action: ssm:GetParameter
               Resource: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/social-media/*
+
+  SendDiscordMessageFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        <<: *esbuild-properties
+        EntryPoints:
+          - send-discord-message.mjs
+    Properties:
+      Handler: send-discord-message.handler
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action: secretsmanager:GetSecretValue
+              Resource: !Ref LinkedInSecrets
+            - Effect: Allow
+              Action: dynamodb:GetItem
+              Resource: !GetAtt PostScheduleTable.Arn
+      Environment:
+        Variables:
+          SECRET_ID: !Ref LinkedInSecrets
+          TABLE_NAME: !Ref PostScheduleTable
 
   GetAccountConfigFormFunction:
     Type: AWS::Serverless::Function
@@ -311,7 +342,9 @@ Resources:
           Statement:
             - Effect: Allow
               Action: lambda:InvokeFunction
-              Resource: !GetAtt SendXPostFunction.Arn
+              Resource:
+                - !GetAtt SendXPostFunction.Arn
+                - !GetAtt SendDiscordMessageFunction.Arn
             - Effect: Allow
               Action: dynamodb:GetItem
               Resource: !GetAtt PostScheduleTable.Arn
@@ -319,6 +352,7 @@ Resources:
         Variables:
           TABLE_NAME: !Ref PostScheduleTable
           SEND_TWITTER_POST_ARN: !GetAtt SendXPostFunction.Arn
+          SEND_DISCORD_POST_ARN: !GetAtt SendDiscordMessageFunction.Arn
       Events:
         TestEvent:
           Type: HttpApi
@@ -508,6 +542,7 @@ Resources:
         LambdaInvoke: !Sub arn:${AWS::Partition}:states:::lambda:invoke
         SendTwitterPost: !GetAtt SendXPostFunction.Arn
         UploadImageToTwitter: !GetAtt UploadMediaToXFunction.Arn
+        SendDiscordMessage: !GetAtt SendDiscordMessageFunction.Arn
         EventBridgePutEvents: !Sub arn:${AWS::Partition}:states:::events:putEvents
         DynamoDbDeleteItem: !Sub arn:${AWS::Partition}:states:::dynamodb:deleteItem
         TableName: !Ref PostScheduleTable
@@ -519,6 +554,7 @@ Resources:
               Resource:
                 - !GetAtt SendXPostFunction.Arn
                 - !GetAtt UploadMediaToXFunction.Arn
+                - !GetAtt SendDiscordMessageFunction.Arn
             - Effect: Allow
               Action: events:PutEvents
               Resource: !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:event-bus/default

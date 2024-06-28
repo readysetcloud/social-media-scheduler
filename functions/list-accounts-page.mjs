@@ -62,14 +62,17 @@ const getHtml = (accounts) => `
     <thead>
       <tr>
         <th>Account Name</th>
-        <th>Actions</th>
+        <th class="float-right">Actions</th>
       </tr>
     </thead>
     <tbody>
       ${accounts.map(account => `
         <tr>
           <td><a href="/v1/accounts/${account.pk.S}">${account.name.S}</a></td>
-          <td><button class="btn btn-primary test-button" onclick="testTwitter('${account.pk.S}')">Test Twitter</button></td>
+          <td class="float-right">
+            ${account.twitter?.M?.status?.S == 'active' ? `<button class="btn btn-primary test-button" onclick="sendTestMessage('${account.pk.S}', 'twitter')">Test Twitter</button>` : ''}
+            ${account.discord?.M?.channel?.S ? `<button class="btn btn-primary test-button" onclick="sendTestMessage('${account.pk.S}', 'discord')">Test Discord</button>` : ''}
+          </td>
         </tr>
       `).join('')}
     </tbody>
@@ -123,15 +126,19 @@ const getHtml = (accounts) => `
         console.error('Error:', error);
       });
     }
-    function testTwitter(accountId) {
+    function sendTestMessage(accountId, platform) {
       fetch('./accounts/' + accountId + '/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: 'THIS IS A TEST, PLEASE IGNORE!', platform: 'twitter' })
+        body: JSON.stringify({ message: 'THIS IS A TEST, PLEASE IGNORE!', platform })
       })
       .then(response => response.json())
       .then(data => {
-        window.open(data.url, '_blank');
+        if(data.url){
+          window.open(data.url, '_blank');
+        } else {
+         alert(data.message);
+        }
       })
       .catch(error => {
         console.error('Error:', error);

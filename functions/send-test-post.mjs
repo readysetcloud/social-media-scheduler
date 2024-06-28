@@ -26,6 +26,7 @@ export const handler = async (event) => {
 
     const data = JSON.parse(event.body);
     let url;
+    let message;
     switch (data.platform) {
       case 'twitter':
         url = await sendTweet(account, data.message);
@@ -33,13 +34,19 @@ export const handler = async (event) => {
       case 'linkedIn':
         url = await sendLinkedInPost(account, data.message);
         break;
+      case 'discord':
+        message = await sendDiscordPost(account, data.message);
+        break;
       default:
         return jsonResponse(400, { message: 'Invalid platform selection' });
     }
 
     if (url) {
       return jsonResponse(201, { url });
-    } else {
+    } else if (message) {
+      return jsonResponse(201, { message });
+    }
+    else {
       return jsonResponse(409, { message: 'Unable to send post on selected platform' });
     }
   } catch (err) {
@@ -75,4 +82,21 @@ const sendLinkedInPost = async (account, message) => {
     const data = JSON.parse(Buffer.from(response.Payload).toString());
     return `https://linkedin.com/posts/${data.url}`;
   }
+};
+
+const sendDiscordPost = async (account, message) => {
+  if (account?.discord?.channel) {
+    const response = await lambda.send(new InvokeCommand({
+      FunctionName: process.env.SEND_DISCORD_POST_ARN,
+      Payload: JSON.stringify({
+        accountId: account.pk,
+        message
+      })
+    }));
+
+    const data = JSON.parse(Buffer.from(response.Payload).toString());
+
+    return `Message sent to channel: ${data.id}`;
+  }
+  return 'Discord is not configured properly for this account';
 };

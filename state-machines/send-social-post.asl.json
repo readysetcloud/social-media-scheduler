@@ -38,6 +38,19 @@
             }
           ],
           "Next": "Has Twitter Image?"
+        },
+        {
+          "And": [
+            {
+              "Variable": "$.detail.platform",
+              "IsPresent": true
+            },
+            {
+              "Variable": "$.detail.platform",
+              "StringEquals": "discord"
+            }
+          ],
+          "Next": "Send Discord Message"
         }
       ],
       "Default": "Not Supported"
@@ -198,6 +211,41 @@
       "Type": "Fail",
       "Error": "PostFailed",
       "Cause": "Something went wrong sending the post"
+    },
+    "Send Discord Message": {
+      "Type": "Task",
+      "Resource": "${LambdaInvoke}",
+      "Parameters": {
+        "FunctionName": "${SendDiscordMessage}",
+        "Payload": {
+          "message.$": "$.detail.message",
+          "accountId.$": "$.detail.accountId",
+          "channel.$": "$.detail.channel"
+        }
+      },
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException",
+            "Lambda.TooManyRequestsException"
+          ],
+          "IntervalSeconds": 1,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
+      "ResultPath": null,
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "Next": "Something went wrong"
+        }
+      ],
+      "Next": "Success"
     }
   }
 }

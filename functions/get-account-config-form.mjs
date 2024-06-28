@@ -165,26 +165,33 @@ const getFormHtml = (account) => `
         ` : ''}
       <div class="form-group">
         <label for="apiKey">API Key</label>
-        <input type="password" id="apiKey" name="apiKey" required>
+        <input type="password" id="apiKey" name="apiKey" >
       </div>
       <div class="form-group">
         <label for="apiKeySecret">API Key Secret</label>
-        <input type="password" id="apiKeySecret" name="apiKeySecret" required>
+        <input type="password" id="apiKeySecret" name="apiKeySecret" >
       </div>
       <div class="form-group">
         <label for="bearerToken">Bearer Token</label>
-        <input type="password" id="bearerToken" name="bearerToken" required>
+        <input type="password" id="bearerToken" name="bearerToken" >
       </div>
       <div class="form-group">
         <label for="accessToken">Access Token</label>
-        <input type="password" id="accessToken" name="accessToken" required>
+        <input type="password" id="accessToken" name="accessToken" >
       </div>
       <div class="form-group">
         <label for="accessTokenSecret">Access Token Secret</label>
-        <input type="password" id="accessTokenSecret" name="accessTokenSecret" required>
+        <input type="password" id="accessTokenSecret" name="accessTokenSecret" >
       </div>
     </fieldset>
-
+    <fieldset>
+      <legend>Discord</legend>
+      <div class="help-text">Enter the channel id you'd like to post messages to. You can <a href="https://docs.statbot.net/docs/faq/general/how-find-id/">find the channel id here</a>.</div>
+      <div class="form-group">
+        <label for="channel">Channel id</label>
+        <input id="channel" name="channel" value="${account.discord?.channel ?? ''}">
+      </div>
+    </fieldset>
     <fieldset>
       <legend>LinkedIn</legend>
       ${(account.linkedIn?.status == 'active' && account.linkedIn?.statusTimestamp) ? `
@@ -202,7 +209,7 @@ const getFormHtml = (account) => `
         <div class="flex-group">
           <div class="form-group">
             <label for="linkedInEntity">Organization Id</label>
-            <input id="linkedInEntity" name="linkedInEntity" value="${account.linkedIn?.organizationId ?? ''}" required>
+            <input id="linkedInEntity" name="linkedInEntity" value="${account.linkedIn?.organizationId ?? ''}" >
           </div>
           <div>
           ${getLinkedInActionButton(account.linkedIn)}
@@ -234,6 +241,9 @@ const getFormHtml = (account) => `
         linkedIn: {
           organizationId: formData.get('linkedInEntity'),
           type: formData.get('linkedInType')
+        },
+        discord: {
+          channel: formData.get('channel')
         }
       };
 

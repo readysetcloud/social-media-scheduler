@@ -11,24 +11,15 @@ const scheduler = new SchedulerClient();
 export const handler = async (event) => {
   try {
     let { accountId } = event.pathParameters;
-    accountId = accountId.toLowerCase();
-    let account = await ddb.send(new GetItemCommand({
-      TableName: process.env.TABLE_NAME,
-      Key: marshall({
-        pk: accountId,
-        sk: 'account'
-      })
-    }));
-
-    if (!account.Item) {
+    const account = await getAccount(accountId);
+    if (!account) {
       return jsonResponse(404, { message: 'Account not found' });
-    } else {
-      account = unmarshall(account.Item);
     }
 
     const data = JSON.parse(event.body);
     await handleTwitterDetails(account, data.twitter);
     await handleLinkedInDetails(account, data.linkedIn);
+    await handleDiscordDetails(account, data.discord);
 
     return { statusCode: 204 };
   } catch (err) {
@@ -37,8 +28,22 @@ export const handler = async (event) => {
   }
 };
 
+const getAccount = async (accountId) => {
+  const response = await ddb.send(new GetItemCommand({
+    TableName: process.env.TABLE_NAME,
+    Key: marshall({ pk: accountId.toLowerCase(), sk: 'account' })
+  }));
+
+  return response.Item ? unmarshall(response.Item) : null;
+};
+
 const handleTwitterDetails = async (account, data) => {
   if (!data) return;
+  const twitter = {
+    ...account,
+    ...data
+  };
+  console.log('editing twitter');
   if (data.removeCredentials) {
     await ddb.send(new UpdateItemCommand({
       TableName: process.env.TABLE_NAME,
@@ -46,18 +51,19 @@ const handleTwitterDetails = async (account, data) => {
         pk: account.pk,
         sk: account.sk
       }),
-      UpdateExpression: 'REMOVE #twitter',
+      UpdateExpression: 'SET #twitter.#status = :status',
       ExpressionAttributeNames: {
         '#twitter': 'twitter'
-      }
+      },
+      ExpressionAttributeValues: marshall({
+        ':status': 'inactive'
+      })
     }));
 
     await ssm.send(new DeleteParameterCommand({
       Name: `/social-media/${account.pk}/twitter`
     }));
-  } else if (data.handle && data.apiKey && data.apiKeySecret && data.accessToken && data.accessTokenSecret) {
-
-  console.log(data)
+  } else if (twitter.handle && twitter.apiKey && twitter.apiKeySecret && twitter.accessToken && twitter.accessTokenSecret) {
     await ddb.send(new UpdateItemCommand({
       TableName: process.env.TABLE_NAME,
       Key: marshall({
@@ -70,7 +76,7 @@ const handleTwitterDetails = async (account, data) => {
       },
       ExpressionAttributeValues: marshall({
         ':twitter': {
-          handle: data.handle,
+          handle: twitter.handle,
           status: 'active',
         }
       })
@@ -79,16 +85,16 @@ const handleTwitterDetails = async (account, data) => {
     await ssm.send(new PutParameterCommand({
       Name: `/social-media/${account.pk}/twitter`,
       Value: JSON.stringify({
-        apiKey: data.apiKey,
-        apiKeySecret: data.apiKeySecret,
-        accessToken: data.accessToken,
-        accessTokenSecret: data.accessTokenSecret,
-        bearerToken: data.bearerToken
+        apiKey: twitter.apiKey,
+        apiKeySecret: twitter.apiKeySecret,
+        accessToken: twitter.accessToken,
+        accessTokenSecret: twitter.accessTokenSecret,
+        bearerToken: twitter.bearerToken
       }),
       Type: 'SecureString',
       Overwrite: true
     }));
-  } else if (account.twitter?.status == 'active' && data.handle && !data.apiKey && !data.apiKeySecret && !data.accessTokenSecret && !data.accessToken && !data.bearerToken) {
+  } else if (twitter.status == 'active' && twitter.handle && !twitter.apiKey && !twitter.apiKeySecret && !twitter.accessTokenSecret && !twitter.accessToken && !twitter.bearerToken) {
     await ddb.send(new UpdateItemCommand({
       TableName: process.env.TABLE_NAME,
       Key: marshall({
@@ -127,7 +133,7 @@ const handleTwitterDetails = async (account, data) => {
 
 const handleLinkedInDetails = async (account, data) => {
   if (!data) return;
-
+  console.log('editing linkedin');
   if (data.removeCredentials) {
     await ddb.send(new UpdateItemCommand({
       TableName: process.env.TABLE_NAME,
@@ -179,4 +185,27 @@ const handleLinkedInDetails = async (account, data) => {
 
     await ddb.send(new UpdateItemCommand(params));
   }
+};
+
+const handleDiscordDetails = async (account, data) => {
+  if (!data) return;
+
+  console.log('editing discord');
+  await ddb.send(new UpdateItemCommand({
+    TableName: process.env.TABLE_NAME,
+    Key: marshall({
+      pk: account.pk,
+      sk: account.sk
+    }),
+    UpdateExpression: 'SET #discord = :discord',
+    ExpressionAttributeNames: {
+      '#discord': 'discord'
+    },
+    ExpressionAttributeValues: marshall({
+      ':discord': {
+        channel: data.channel
+      }
+    })
+  }));
+
 };

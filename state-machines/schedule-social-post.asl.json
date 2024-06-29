@@ -237,6 +237,8 @@
                 "sk": {
                   "S": "post"
                 },
+                "accountId": { "S.$": "$.detail.accountId" },
+                "platform": { "S.$": "$.detail.platform" },
                 "type": {
                   "S.$": "States.Format('{}#{}', $.detail.accountId, $.detail.platform)"
                 },
@@ -247,7 +249,7 @@
                   "S.$": "$.detail.message"
                 },
                 "campaign": {
-                  "S.$": "$.detail.campaign"
+                  "S.$": "States.Format('{}#{}', $.detail.accountId, $.detail.campaign)"
                 }
               }
             },
@@ -266,6 +268,8 @@
                 "sk": {
                   "S": "post"
                 },
+                "accountId": { "S.$": "$.detail.accountId" },
+                "platform": { "S.$": "$.detail.platform" },
                 "type": {
                   "S.$": "States.Format('{}#{}', $.detail.accountId, $.detail.platform)"
                 },

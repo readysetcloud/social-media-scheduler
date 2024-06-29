@@ -82,6 +82,8 @@ Resources:
           AttributeType: S
         - AttributeName: sort
           AttributeType: S
+        - AttributeName: campaign
+          AttributeType: S
       GlobalSecondaryIndexes:
         - IndexName: schedules
           KeySchema:
@@ -89,6 +91,12 @@ Resources:
               KeyType: HASH
             - AttributeName: sort
               KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+        - IndexName: campaigns
+          KeySchema:
+            - AttributeName: campaign
+              KeyType: HASH
           Projection:
             ProjectionType: ALL
 
@@ -325,6 +333,37 @@ Resources:
             ApiId: !Ref AccountApi
             Path: /accounts/{accountId}
             Method: PUT
+
+  DeleteSocialCampaignFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        <<: *esbuild-properties
+        EntryPoints:
+          - delete-social-campaign.mjs
+    Properties:
+      Handler: delete-social-campaign.handler
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action: dynamodb:DeleteItem
+              Resource: !GetAtt PostScheduleTable.Arn
+            - Effect: Allow
+              Action: scheduler:DeleteSchedule
+              Resource: !Sub arn:${AWS::Partition}:scheduler:${AWS::Region}:${AWS::AccountId}:schedule/social/*
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref PostScheduleTable
+      Events:
+        DeleteEvent:
+          Type: EventBridgeRule
+          Properties:
+            Pattern:
+              detail-type:
+                - Delete Social Campaign
 
   SendTestPostFunction:
     Type: AWS::Serverless::Function

@@ -32,7 +32,7 @@ export const handler = async (event) => {
 
       try {
         await scheduler.send(new DeleteScheduleCommand({
-          Name: `${item.accountId}#${item.platform}#${item.pk}`,
+          Name: `${item.accountId}-${item.platform}-${item.pk}`,
           GroupName: 'social'
         }));
       } catch (err) {

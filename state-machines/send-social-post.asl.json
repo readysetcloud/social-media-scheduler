@@ -219,8 +219,7 @@
         "FunctionName": "${SendDiscordMessage}",
         "Payload": {
           "message.$": "$.detail.message",
-          "accountId.$": "$.detail.accountId",
-          "channel.$": "$.detail.channel"
+          "accountId.$": "$.detail.accountId"
         }
       },
       "Retry": [

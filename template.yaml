@@ -352,6 +352,9 @@ Resources:
               Action: dynamodb:DeleteItem
               Resource: !GetAtt PostScheduleTable.Arn
             - Effect: Allow
+              Action: dynamodb:Query
+              Resource: !Sub ${PostScheduleTable.Arn}/index/campaigns
+            - Effect: Allow
               Action: scheduler:DeleteSchedule
               Resource: !Sub arn:${AWS::Partition}:scheduler:${AWS::Region}:${AWS::AccountId}:schedule/social/*
       Environment:

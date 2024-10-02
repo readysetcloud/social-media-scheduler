@@ -1,4 +1,4 @@
-import { Client, GatewayIntentBits, GuildChannel } from 'discord.js';
+import { Client, GatewayIntentBits } from 'discord.js';
 import { DynamoDBClient, GetItemCommand } from '@aws-sdk/client-dynamodb';
 import { marshall, unmarshall } from '@aws-sdk/util-dynamodb';
 import { getSecretValue } from './utils/helpers.mjs';
@@ -17,13 +17,25 @@ export const handler = async (state) => {
       clientLoggedIn = true;
     }
 
-    const channel = await client.channels.fetch(account.discord.channel);
-    if (channel) {
-      await channel.send(state.message);
-      return { id: account.discord.channel };
-    } else {
-      console.error(`Channel ${discordSecrets.channel} not found`);
+    let channelId = account.discord.channel;
+    if (state.metadata?.channel) {
+      channelId = state.metadata.channel;
     }
+
+    const channel = await client.channels.fetch(channelId);
+    if (channel) {
+      const message = { content: state.message };
+      if (state.metadata?.video) {
+        const video = await downloadMedia(state.metadata.video);
+        message.files = [{ attachment: video, name: 'clip.mp4' }];
+      }
+
+      const response = await channel.send(message);
+      return { id: response.id };
+    } else {
+      console.error(`Channel ${channelId} not found`);
+    }
+    return { success: false };
   } catch (err) {
     console.error(err);
     throw err;
@@ -49,3 +61,8 @@ const getAccount = async (accountId) => {
   return unmarshall(account.Item);
 };
 
+const downloadMedia = async (url) => {
+  const response = await fetch(url);
+  const arrayBuffer = await response.arrayBuffer();
+  return Buffer.from(arrayBuffer);
+};

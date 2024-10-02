@@ -37,7 +37,7 @@
               "StringEquals": "twitter"
             }
           ],
-          "Next": "Has Twitter Image?"
+          "Next": "Has Twitter Media?"
         },
         {
           "And": [
@@ -50,18 +50,23 @@
               "StringEquals": "discord"
             }
           ],
-          "Next": "Send Discord Message"
+          "Next": "Has Discord Metadata?"
         }
       ],
       "Default": "Not Supported"
     },
-    "Has Twitter Image?": {
+    "Has Twitter Media?": {
       "Type": "Choice",
       "Choices": [
         {
           "Variable": "$.detail.image",
           "IsPresent": true,
           "Next": "Upload Image to Twitter"
+        },
+        {
+          "Variable": "$.detail.video",
+          "IsPresent": true,
+          "Next": "Upload Video to Twitter"
         }
       ],
       "Default": "Send Twitter Post"
@@ -93,9 +98,38 @@
       "ResultSelector": {
         "id.$": "$.Payload.mediaId"
       },
-      "Next": "Send Twitter Post With Image"
+      "Next": "Send Twitter Post With Media"
     },
-    "Send Twitter Post With Image": {
+    "Upload Video to Twitter": {
+      "Type": "Task",
+      "Resource": "${LambdaInvoke}",
+      "Parameters": {
+        "FunctionName": "${UploadImageToTwitter}",
+        "Payload": {
+          "accountId.$": "$.detail.accountId",
+          "video.$": "$.detail.video"
+        }
+      },
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException",
+            "Lambda.TooManyRequestsException"
+          ],
+          "IntervalSeconds": 1,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
+      "ResultPath": "$.media",
+      "ResultSelector": {
+        "id.$": "$.Payload.mediaId"
+      },
+      "Next": "Send Twitter Post With Media"
+    },
+    "Send Twitter Post With Media": {
       "Type": "Task",
       "Resource": "${LambdaInvoke}",
       "OutputPath": "$.Payload",
@@ -212,6 +246,17 @@
       "Error": "PostFailed",
       "Cause": "Something went wrong sending the post"
     },
+    "Has Discord Metadata?": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.detail.metadata",
+          "IsPresent": true,
+          "Next": "Send Discord Message"
+        }
+      ],
+      "Default": "Send Discord Message With Metadata"
+    },
     "Send Discord Message": {
       "Type": "Task",
       "Resource": "${LambdaInvoke}",
@@ -220,6 +265,41 @@
         "Payload": {
           "message.$": "$.detail.message",
           "accountId.$": "$.detail.accountId"
+        }
+      },
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException",
+            "Lambda.TooManyRequestsException"
+          ],
+          "IntervalSeconds": 1,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
+      "ResultPath": null,
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "Next": "Something went wrong"
+        }
+      ],
+      "Next": "Success"
+    },
+    "Send Discord Message With Metadata": {
+      "Type": "Task",
+      "Resource": "${LambdaInvoke}",
+      "Parameters": {
+        "FunctionName": "${SendDiscordMessage}",
+        "Payload": {
+          "message.$": "$.detail.message",
+          "accountId.$": "$.detail.accountId",
+          "metadata.$": "$.detail.metadata"
         }
       },
       "Retry": [

@@ -1,21 +1,21 @@
 import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
 const bedrock = new BedrockRuntimeClient();
-const MODEL_ID = 'anthropic.claude-3-sonnet-20240229-v1:0';
+const MODEL_ID = 'anthropic.claude-3-5-sonnet-20240620-v1:0';
 
 export const handler = async (state) => {
   try {
     let campaignRule = '';
     if (state.post.campaign) {
-      const lastCampaignDate = getLatestCampaignDate(state.post.campaign, state.schedule);
+      const lastCampaignDate = getLatestCampaignDate(`${state.post.accountId}#${state.post.campaign}`, state.schedule);
       if (lastCampaignDate) {
-        campaignRule = `- The date must be at least 5 days after ${lastCampaignDate}`;
+        campaignRule = `- The date must be at least 3 days after ${lastCampaignDate}`;
       }
     }
-    const schedule = state.schedule.map(s => `\t- ${s.sort}, Platform: ${s.type}`);
+    const schedule = state.schedule.map(s => `\t- Date: ${s.sort}, Platform: ${s.platform}`);
     const promptSchedule = schedule.length ? schedule.join('\r\n') : 'No schedule';
 
     const rules = `- The post must be at least one day after ${state.timestamp}
-      - Do not schedule a post on the weekend.
+      - Do not schedule a post on Sundays.
       - Only one post is allowed to be scheduled a day per platform
       - Select the next available day in the future that matches the above rules unless otherwise specified
       - The scheduled time of day must vary between high engagement times in the morning and afternoon for the target audience.

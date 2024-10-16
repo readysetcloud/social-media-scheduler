@@ -252,10 +252,10 @@
         {
           "Variable": "$.detail.metadata",
           "IsPresent": true,
-          "Next": "Send Discord Message"
+          "Next": "Send Discord Message With Metadata"
         }
       ],
-      "Default": "Send Discord Message With Metadata"
+      "Default": "Send Discord Message"
     },
     "Send Discord Message": {
       "Type": "Task",
@@ -270,12 +270,9 @@
       "Retry": [
         {
           "ErrorEquals": [
-            "Lambda.ServiceException",
-            "Lambda.AWSLambdaException",
-            "Lambda.SdkClientException",
-            "Lambda.TooManyRequestsException"
+            "States.ALL"
           ],
-          "IntervalSeconds": 1,
+          "IntervalSeconds": 5,
           "MaxAttempts": 3,
           "BackoffRate": 2
         }
@@ -305,12 +302,9 @@
       "Retry": [
         {
           "ErrorEquals": [
-            "Lambda.ServiceException",
-            "Lambda.AWSLambdaException",
-            "Lambda.SdkClientException",
-            "Lambda.TooManyRequestsException"
+            "States.ALL"
           ],
-          "IntervalSeconds": 1,
+          "IntervalSeconds": 5,
           "MaxAttempts": 3,
           "BackoffRate": 2
         }

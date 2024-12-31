@@ -39,6 +39,9 @@ Metadata:
       - js=import { createRequire } from 'module'; const require = createRequire(import.meta.url);
     External:
       - '@aws-sdk/*'
+    Loader:
+      - .hbs=text
+      - .handlebars=text
 
 Globals:
   Function:
@@ -448,6 +451,19 @@ Resources:
             Path: /linkedin/redirect
             Method: GET
 
+  CreateVerificationEmailFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        <<: *esbuild-properties
+        EntryPoints:
+          - create-verification-email.mjs
+    Properties:
+      Handler: create-verification-email.handler
+      Policies:
+        - AWSLambdaBasicExecutionRole
+
   SocialPostScheduleGroup:
     Type: AWS::Scheduler::ScheduleGroup
     Properties:
@@ -477,6 +493,7 @@ Resources:
         UnmarshallDataFunction: "{{resolve:ssm:/serverless-toolbox/marshall-unmarshall-data}}"
         CalculateScheduleFunction: !GetAtt CalculateScheduledTimeFunction.Arn
         LambdaInvoke: !Sub arn:${AWS::Partition}:states:::lambda:invoke
+        CreateVerificationEmail: !GetAtt CreateVerificationEmailFunction.Arn
       Policies:
         - Version: 2012-10-17
           Statement:
@@ -497,6 +514,7 @@ Resources:
               Resource:
                 - "{{resolve:ssm:/serverless-toolbox/marshall-unmarshall-data}}"
                 - !GetAtt CalculateScheduledTimeFunction.Arn
+                - !GetAtt CreateVerificationEmailFunction.Arn
             - Effect: Allow
               Action: dynamodb:PutItem
               Resource: !GetAtt PostScheduleTable.Arn

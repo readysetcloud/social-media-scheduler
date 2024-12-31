@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Configure {{name}} API Keys</title>
+  {{> styles }}
+</head>
+<body class="flex justify-center items-center bg-gradient-to-br from-purple to-darkBlue p-8">
+  <form id="apiKeysForm" class="bg-white p-8 rounded-lg shadow-md w-full max-w-2xl">
+    <h2 class="text-2xl font-semibold text-center mb-6">Configure {{name}} API Keys</h2>
+
+    <fieldset class="border border-gray-300 rounded-lg p-4 mb-6">
+      <legend class="text-lg font-bold px-2">Twitter</legend>
+      <div class="text-sm text-gray-600 mb-4">
+        You can register for a <a href="https://developer.twitter.com/en/portal/petition/essential/terms?plan=free" class="text-blue-600 underline">Twitter Developer account</a> to get the info required for this form.
+      </div>
+      {{> inputField label="Handle" id="handle" type="text" value=twitter.handle required=true }}
+      {{#if (eq twitter.status 'active')}}
+        <div class="text-sm italic text-gray-500 mb-4">
+          Credentials are saved in the system but are omitted here for security.
+        </div>
+        <div class="flex items-center mb-4">
+          <input type="checkbox" id="twitterRemoveCredentials" name="twitterRemoveCredentials" value="false" class="mr-2">
+          <label for="twitterRemoveCredentials">Remove saved credentials</label>
+        </div>
+        <hr class="my-4">
+      {{/if}}
+      {{> inputField label="API Key" id="apiKey" type="password" }}
+      {{> inputField label="API Key Secret" id="apiKeySecret" type="password" }}
+      {{> inputField label="Bearer Token" id="bearerToken" type="password" }}
+      {{> inputField label="Access Token" id="accessToken" type="password" }}
+      {{> inputField label="Access Token Secret" id="accessTokenSecret" type="password" }}
+    </fieldset>
+
+    <fieldset class="border border-gray-300 rounded-lg p-4 mb-6">
+      <legend class="text-lg font-bold px-2">Discord</legend>
+      <div class="text-sm text-gray-600 mb-4">
+        Enter the channel id you'd like to post messages to. You can <a href="https://docs.statbot.net/docs/faq/general/how-find-id/" class="text-blue-600 underline">find the channel id here</a>.
+      </div>
+      {{> inputField label="Channel id" id="channel" type="text" value=discord.channel }}
+    </fieldset>
+
+    <fieldset class="border border-gray-300 rounded-lg p-4 mb-6">
+      <legend class="text-lg font-bold px-2">LinkedIn</legend>
+      {{#if (eq linkedIn.status 'active')}}
+        <div class="text-sm text-gray-600 mb-4">
+          This account was authenticated at {{linkedIn.statusTimestamp}}.
+        </div>
+        <hr class="my-4">
+      {{/if}}
+      {{#if (eq linkedIn.status 'expired')}}
+        <div class="text-sm text-red-600 mb-4">
+          Your authentication to this account has expired. Please re-authenticate.
+        </div>
+        <hr class="my-4">
+      {{/if}}
+      <div class="flex gap-4 items-center mb-4">
+        <label>
+          <input type="radio" name="linkedInType" value="personal" class="mr-2" onclick="toggleOrganizationField(false)" checked> Personal
+        </label>
+        <label>
+          <input type="radio" name="linkedInType" value="organization" class="mr-2" onclick="toggleOrganizationField(true)"> Organization
+        </label>
+      </div>
+      <div id="organizationField" class="mb-4" style="display:none;">
+        <div class="text-sm italic text-gray-500 mb-2">
+          Your organization id is found in the address bar when viewing the company page on LinkedIn.
+        </div>
+        {{> inputField label="Organization Id" id="linkedInEntity" type="text" value=linkedIn.organizationId }}
+        {{> linkedInAction linkedIn=linkedIn }}
+      </div>
+      <div id="personalField">
+      <div class="hint-text">When publishing posts to LinkedIn, they will be created under your personal account.</div>
+        {{> inputField label="Client Id" id="linkedInClientId" type="text" value=linkedIn.clientId }}
+        {{> inputField label="Client Secret" id="linkedInClientSecret" type="text" value=linkedIn.clientSecret }}
+        {{> linkedInAction linkedIn=linkedIn }}
+      </div>
+    </fieldset>
+
+    <!-- Bluesky Section -->
+    <fieldset class="border border-gray-300 rounded-lg p-4 mb-6">
+      <legend class="text-lg font-bold px-2">Bluesky</legend>
+      {{> inputField label="Handle" id="blueskyHandle" type="text" value=bluesky.handle required=true }}
+      {{> inputField label="Password" id="blueskyPassword" type="password" required=true }}
+    </fieldset>
+
+    <!-- Submit Button -->
+    <input type="submit" value="Submit" class="w-full bg-purple-600 text-white py-2 rounded-md hover:bg-purple-800 cursor-pointer">
+  </form>
+  <script>
+    function submitForm(event) {
+      event.preventDefault();
+      const form = document.getElementById('apiKeysForm');
+      const formData = new FormData(form);
+      const data = {
+        twitter: {
+          apiKey: formData.get('apiKey'),
+          apiKeySecret: formData.get('apiKeySecret'),
+          bearerToken: formData.get('bearerToken'),
+          handle: formData.get('handle'),
+          accessToken: formData.get('accessToken'),
+          accessTokenSecret: formData.get('accessTokenSecret'),
+          removeCredentials: formData.get('twitterRemoveCredentials')
+        },
+        linkedIn: {
+          organizationId: formData.get('linkedInEntity'),
+          type: formData.get('linkedInType')
+        },
+        discord: {
+          channel: formData.get('channel')
+        },
+        blueSky: {
+          handle: formData.get('blueskyHandle'),
+          password: formData.get('blueskyPassword')
+        }
+      };
+
+      fetch('./{{pk}}', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data)
+      })
+      .then(data => {
+        console.log('Success:', data);
+        window.location.href = '/v1/accounts';
+      })
+      .catch((error) => {
+        console.error('Error:', error);
+        alert('Error submitting form');
+      });
+    }
+
+    function authenticateLinkedIn() {
+      const linkedInEntity = document.getElementById('linkedInEntity').value;
+      fetch('/v1/linkedin/authenticate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ accountId: "{{pk}}" })
+      })
+      .then(response => response.json())
+      .then(data => {
+        window.location.href = data.url;
+      })
+      .catch((error) => {
+        console.error('Error:', error);
+        alert('Error authenticating LinkedIn');
+      });
+    }
+
+    function revokeLinkedIn() {
+      const data = {
+        linkedIn: {
+          removeCredentials: true
+        }
+      };
+
+      fetch('./{{pk}}', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data)
+      })
+      .then(data => {
+        console.log('Success:', data);
+        window.location.reload();
+      })
+      .catch((error) => {
+        console.error('Error:', error);
+        alert('Error revoking LinkedIn credentials');
+      });
+    }
+    function toggleOrganizationField(show) {
+      const orgField = document.getElementById('organizationField');
+      const personalField = document.getElementById('personalField');
+      if (show) {
+        orgField.style.display = 'block';
+        personalField.style.display = 'none';
+        orgField.value = '';
+      } else {
+        orgField.style.display = 'none';
+        personalField.style.display = 'block';
+        orgField.value = "{{linkedIn.organizationId}}";
+      }
+    }
+  </script>
+</body>
+</html>

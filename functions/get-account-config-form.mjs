@@ -1,5 +1,10 @@
 import { DynamoDBClient, GetItemCommand } from "@aws-sdk/client-dynamodb";
 import { marshall, unmarshall } from "@aws-sdk/util-dynamodb";
+import Handlebars from "handlebars";
+import template from '../templates/account-config.hbs';
+import inputField from '../templates/inputField.handlebars';
+import styles from '../templates/styles.handlebars';
+import linkedInAction from '../templates/linkedInAction.handlebars';
 
 const ddb = new DynamoDBClient();
 
@@ -26,7 +31,9 @@ export const handler = async (event) => {
       account = unmarshall(account.Item);
     }
 
-    const form = getFormHtml(account);
+    const compiledTemplate = configureHbs();
+    const form = compiledTemplate(account);
+    //const form = getFormHtml(account);
     return {
       statusCode: 200,
       headers: {
@@ -44,6 +51,18 @@ export const handler = async (event) => {
       body: JSON.stringify({ error: 'Something went wrong' })
     };
   }
+};
+
+const configureHbs = () => {
+  Handlebars.registerPartial('inputField', inputField);
+  Handlebars.registerPartial('styles', styles);
+  Handlebars.registerPartial('linkedInAction', linkedInAction);
+  Handlebars.registerHelper('eq', (a, b) => {
+    return a == b;
+  });
+
+  const compiledTemplate = Handlebars.compile(template);
+  return compiledTemplate;
 };
 
 const getFormHtml = (account) => `

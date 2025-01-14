@@ -6,7 +6,7 @@ export const handler = async (state) => {
   try {
     let campaignRule = '';
     if (state.post.campaign) {
-      const lastCampaignDate = getLatestCampaignDate(`${state.post.accountId}#${state.post.campaign}`, state.schedule);
+      const lastCampaignDate = getLatestCampaignDate(`${state.accountId}#${state.post.campaign}`, state.schedule);
       if (lastCampaignDate) {
         campaignRule = `- The date must be at least 3 days after ${lastCampaignDate}`;
       }

@@ -1,5 +1,8 @@
+// POST /accounts
+
 import { DynamoDBClient, PutItemCommand } from '@aws-sdk/client-dynamodb';
 import { marshall } from '@aws-sdk/util-dynamodb';
+import { jsonResponse } from '../utils/helpers.mjs';
 
 const ddb = new DynamoDBClient();
 
@@ -22,30 +25,12 @@ export const handler = async (event) => {
       })
     }));
 
-    return {
-      statusCode: 201,
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ id: data.id })
-    };
+    return jsonResponse(201, { id: data.id });
   } catch (err) {
     if (err.name === 'ConditionalCheckFailedException') {
-      return {
-        statusCode: 409,
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ error: 'Account already exists' })
-      };
+      return jsonResponse(409, { error: 'Account already exists' });
     } else {
-      return {
-        statusCode: 500,
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ error: 'Something went wrong' })
-      };
+      return jsonResponse(500, { error: 'Something went wrong' });
     }
   }
 };

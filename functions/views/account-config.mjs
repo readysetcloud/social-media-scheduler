@@ -1,10 +1,13 @@
+// GET /accounts/{accountId}
+
 import { DynamoDBClient, GetItemCommand } from "@aws-sdk/client-dynamodb";
 import { marshall, unmarshall } from "@aws-sdk/util-dynamodb";
 import Handlebars from "handlebars";
-import template from '../templates/account-config.hbs';
-import inputField from '../templates/inputField.handlebars';
-import styles from '../templates/styles.handlebars';
-import linkedInAction from '../templates/linkedInAction.handlebars';
+import template from '../../templates/account-config.hbs';
+import inputField from '../../templates/inputField.handlebars';
+import styles from '../../templates/styles.handlebars';
+import linkedInAction from '../../templates/linkedInAction.handlebars';
+import { htmlResponse, jsonResponse } from "../utils/helpers.mjs";
 
 const ddb = new DynamoDBClient();
 
@@ -20,36 +23,17 @@ export const handler = async (event) => {
       })
     }));
     if (!account.Item) {
-      return {
-        statusCode: 404,
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ message: 'Account not found' })
-      };
+      return jsonResponse(404, { message: 'Account not found' });
     } else {
       account = unmarshall(account.Item);
     }
 
     const compiledTemplate = configureHbs();
     const form = compiledTemplate(account);
-    //const form = getFormHtml(account);
-    return {
-      statusCode: 200,
-      headers: {
-        'Content-Type': 'text/html'
-      },
-      body: form
-    };
+    return htmlResponse(form);
   } catch (err) {
     console.error(err);
-    return {
-      statusCode: 500,
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ error: 'Something went wrong' })
-    };
+    return jsonResponse(500, { message: 'Something went wrong' });
   }
 };
 

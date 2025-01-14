@@ -1,8 +1,10 @@
+// PUT /accounts/{accountId}
+
 import { DynamoDBClient, GetItemCommand, UpdateItemCommand } from "@aws-sdk/client-dynamodb";
 import { SSMClient, PutParameterCommand, DeleteParameterCommand } from "@aws-sdk/client-ssm";
 import { SchedulerClient, DeleteScheduleCommand } from '@aws-sdk/client-scheduler';
 import { marshall, unmarshall } from "@aws-sdk/util-dynamodb";
-import { jsonResponse } from "./utils/helpers.mjs";
+import { jsonResponse } from "../utils/helpers.mjs";
 
 const ddb = new DynamoDBClient();
 const ssm = new SSMClient();
@@ -21,7 +23,7 @@ export const handler = async (event) => {
     await handleLinkedInDetails(account, data.linkedIn);
     await handleDiscordDetails(account, data.discord);
 
-    return { statusCode: 204 };
+    return jsonResponse(204);
   } catch (err) {
     console.error(err);
     return jsonResponse(500, { error: err.message });
@@ -207,5 +209,4 @@ const handleDiscordDetails = async (account, data) => {
       }
     })
   }));
-
 };

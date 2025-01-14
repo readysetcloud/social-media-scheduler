@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Review Social Media Messages</title>
+  {{> styles }}
+</head>
+
+<body class="bg-gradient-to-br from-purple to-darkBlue min-h-screen flex justify-center items-start p-4">
+  <div class="bg-white shadow-md rounded-lg px-6 py-8 w-full max-w-2xl">
+    <h1 class="text-2xl font-bold text-center mb-6">Review Social Media Messages</h1>
+
+    <form id="messageForm" class="space-y-6">
+      {{#each messages}}
+      <div class="space-y-4">
+        <label class="block text-gray-700 font-bold" for="message-{{id}}">
+          Message for {{platform}}:
+        </label>
+        {{#if ../requiresApproval}}
+        <div class="flex flex-col sm:flex-row sm:items-center gap-4">
+          <input type="text" id="message-{{id}}" name="message" value="{{message}}"
+            class="flex-1 border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-200" />
+          <button type="button" onclick="updateMessage('{{id}}')"
+            class="bg-purple text-white px-4 py-2 rounded hover:bg-darkBlue">
+            Update
+          </button>
+          <button type="button" onclick="deleteMessage('{{id}}')"
+            class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600">
+            Delete
+          </button>
+        </div>
+        {{else}}
+        <p class="text-gray-800">{{message}}</p>
+        {{/if}}
+      </div>
+      {{/each}}
+
+      <div class="text-center mt-8">
+        {{#if requiresApproval}}
+        <button type="button" onclick="approveMessages()"
+          class="bg-purple text-white px-6 py-3 rounded font-bold hover:bg-darkBlue">
+          Approve and Schedule
+        </button>
+        {{else}}
+        <strong class="text-gray-700">Posts Scheduled</strong>
+        {{/if}}
+      </div>
+    </form>
+  </div>
+
+  {{#if requiresApproval}}
+  <script>
+    async function updateMessage(id) {
+      const messageInput = document.getElementById(`message-${id}`);
+      const updatedMessage = messageInput.value;
+
+      const response = await fetch(`{{baseUrl}}/confirmations/{{referenceNumber}}/messages/${id}?token={{token}}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ message: updatedMessage }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        console.error('Error updating message:', error);
+        alert('Failed to update message');
+      } else {
+        alert('Message updated 👍');
+      }
+    }
+
+    async function deleteMessage(id) {
+      const response = await fetch(`{{baseUrl}}/confirmations/{{referenceNumber}}/messages/${id}?token={{token}}`, {
+        method: 'DELETE'
+      });
+      if (response.ok) {
+        window.location.reload();
+      } else {
+        const error = await response.json();
+        console.error('Error deleting message:', error);
+        alert('Failed to delete message');
+      }
+    }
+
+    async function approveMessages() {
+      const response = await fetch('{{baseUrl}}/confirmations/{{referenceNumber}}?token={{token}}');
+      if (response.ok) {
+        alert('Messages approved successfully 👍');
+        window.location.reload();
+      } else {
+        const error = await response.json();
+        console.error('Error approving messages:', error);
+        alert('Failed to approve messages');
+      }
+    }
+  </script>
+  {{/if}}
+</body>
+
+</html>

@@ -24,6 +24,13 @@ Parameters:
     Type: String
     Default: ''
     NoEcho: true
+  HmacSecret:
+    Type: String
+    Default: ''
+    NoEcho: true
+  BaseUrl:
+    Type: String
+    Default: ''
 
 Metadata:
   esbuild-properties: &esbuild-properties
@@ -102,6 +109,9 @@ Resources:
               KeyType: HASH
           Projection:
             ProjectionType: ALL
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
 
   LinkedInSecrets:
     Type: AWS::SecretsManager::Secret
@@ -215,16 +225,16 @@ Resources:
           SECRET_ID: !Ref LinkedInSecrets
           TABLE_NAME: !Ref PostScheduleTable
 
-  GetAccountConfigFormFunction:
+  AccountConfigView:
     Type: AWS::Serverless::Function
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
         <<: *esbuild-properties
         EntryPoints:
-          - get-account-config-form.mjs
+          - views/account-config.mjs
     Properties:
-      Handler: get-account-config-form.handler
+      Handler: views/account-config.handler
       Policies:
         - AWSLambdaBasicExecutionRole
         - Version: 2012-10-17
@@ -243,16 +253,16 @@ Resources:
             Path: /accounts/{accountId}
             Method: GET
 
-  ListAccountsPageFunction:
+  ListAccountsView:
     Type: AWS::Serverless::Function
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
         <<: *esbuild-properties
         EntryPoints:
-          - list-accounts-page.mjs
+          - views/list-accounts.mjs
     Properties:
-      Handler: list-accounts-page.handler
+      Handler: views/list-accounts.handler
       Policies:
         - AWSLambdaBasicExecutionRole
         - Version: 2012-10-17
@@ -278,9 +288,9 @@ Resources:
       BuildProperties:
         <<: *esbuild-properties
         EntryPoints:
-          - add-account.mjs
+          - api/add-account.mjs
     Properties:
-      Handler: add-account.handler
+      Handler: api/add-account.handler
       Policies:
         - AWSLambdaBasicExecutionRole
         - Version: 2012-10-17
@@ -306,9 +316,9 @@ Resources:
       BuildProperties:
         <<: *esbuild-properties
         EntryPoints:
-          - update-account.mjs
+          - api/update-account.mjs
     Properties:
-      Handler: update-account.handler
+      Handler: api/update-account.handler
       Policies:
         - AWSLambdaBasicExecutionRole
         - Version: 2012-10-17
@@ -451,18 +461,174 @@ Resources:
             Path: /linkedin/redirect
             Method: GET
 
-  CreateVerificationEmailFunction:
+  SaveMessagesFunction:
     Type: AWS::Serverless::Function
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
         <<: *esbuild-properties
         EntryPoints:
-          - create-verification-email.mjs
+          - save-messages.mjs
     Properties:
-      Handler: create-verification-email.handler
+      Handler: save-messages.handler
       Policies:
         - AWSLambdaBasicExecutionRole
+        - Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action: dynamodb:PutItem
+              Resource: !GetAtt PostScheduleTable.Arn
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref PostScheduleTable
+
+  ResumeSchedulingFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        <<: *esbuild-properties
+        EntryPoints:
+          - api/resume-scheduling.mjs
+    Properties:
+      Handler: api/resume-scheduling.handler
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action: dynamodb:Query
+              Resource: !Sub ${PostScheduleTable.Arn}/index/campaigns
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:DeleteItem
+              Resource: !GetAtt PostScheduleTable.Arn
+            - Effect: Allow
+              Action: states:SendTaskSuccess
+              Resource: '*'
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref PostScheduleTable
+          HMAC_SECRET: !Ref HmacSecret
+      Events:
+        ApiEvent:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AccountApi
+            Path: /confirmations/{referenceNumber}
+            Method: GET
+
+  ReviewMessagesFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        <<: *esbuild-properties
+        EntryPoints:
+          - views/review-messages.mjs
+    Properties:
+      Handler: views/review-messages.handler
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action: dynamodb:Query
+              Resource: !Sub ${PostScheduleTable.Arn}/index/campaigns
+            - Effect: Allow
+              Action: dynamodb:GetItem
+              Resource: !GetAtt PostScheduleTable.Arn
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref PostScheduleTable
+          HMAC_SECRET: !Ref HmacSecret
+          BASE_URL: !Ref BaseUrl
+      Events:
+        ApiEvent:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AccountApi
+            Path: /confirmations/{referenceNumber}/messages
+            Method: GET
+
+  UpdateDeleteMessageFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        <<: *esbuild-properties
+        EntryPoints:
+          - api/update-delete-message.mjs
+    Properties:
+      Handler: api/update-delete-message.handler
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action: dynamodb:Query
+              Resource: !Sub ${PostScheduleTable.Arn}/index/campaigns
+            - Effect: Allow
+              Action:
+                - dynamodb:UpdateItem
+                - dynamodb:DeleteItem
+              Resource: !GetAtt PostScheduleTable.Arn
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref PostScheduleTable
+          HMAC_SECRET: !Ref HmacSecret
+      Events:
+        Update:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AccountApi
+            Path: /confirmations/{referenceNumber}/messages/{messageId}
+            Method: PUT
+        Delete:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AccountApi
+            Path: /confirmations/{referenceNumber}/messages/{messageId}
+            Method: DELETE
+
+  SendReviewEmailFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        <<: *esbuild-properties
+        EntryPoints:
+          - send-review-email.mjs
+    Properties:
+      Handler: send-review-email.handler
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action: dynamodb:Query
+              Resource: !Sub ${PostScheduleTable.Arn}/index/campaigns
+            - Effect: Allow
+              Action: dynamodb:PutItem
+              Resource: !GetAtt PostScheduleTable.Arn
+            - Effect: Allow
+              Action: events:PutEvents
+              Resource: !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:event-bus/default
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref PostScheduleTable
+          HMAC_SECRET: !Ref HmacSecret
+          BASE_URL: !Ref BaseUrl
+      Events:
+        Send:
+          Type: EventBridgeRule
+          Properties:
+            Pattern:
+              source:
+                - scheduler
+              detail-type:
+                - Send Review Email
 
   SocialPostScheduleGroup:
     Type: AWS::Scheduler::ScheduleGroup
@@ -490,10 +656,12 @@ Resources:
         TableName: !Ref PostScheduleTable
         DynamoDbQuery: !Sub arn:${AWS::Partition}:states:::aws-sdk:dynamodb:query
         DynamoDbPutItem: !Sub arn:${AWS::Partition}:states:::dynamodb:putItem
+        DynamoDbGetItem: !Sub arn:${AWS::Partition}:states:::dynamodb:getItem
         UnmarshallDataFunction: "{{resolve:ssm:/serverless-toolbox/marshall-unmarshall-data}}"
         CalculateScheduleFunction: !GetAtt CalculateScheduledTimeFunction.Arn
         LambdaInvoke: !Sub arn:${AWS::Partition}:states:::lambda:invoke
-        CreateVerificationEmail: !GetAtt CreateVerificationEmailFunction.Arn
+        SaveMessages: !GetAtt SaveMessagesFunction.Arn
+        EventBridgePutEventsAndWait: !Sub arn:${AWS::Partition}:states:::events:putEvents.waitForTaskToken
       Policies:
         - Version: 2012-10-17
           Statement:
@@ -514,9 +682,11 @@ Resources:
               Resource:
                 - "{{resolve:ssm:/serverless-toolbox/marshall-unmarshall-data}}"
                 - !GetAtt CalculateScheduledTimeFunction.Arn
-                - !GetAtt CreateVerificationEmailFunction.Arn
+                - !GetAtt SaveMessagesFunction.Arn
             - Effect: Allow
-              Action: dynamodb:PutItem
+              Action:
+                - dynamodb:PutItem
+                - dynamodb:GetItem
               Resource: !GetAtt PostScheduleTable.Arn
             - Effect: Allow
               Action: dynamodb:Query

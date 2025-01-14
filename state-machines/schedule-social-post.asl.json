@@ -1,49 +1,72 @@
 {
   "QueryLanguage": "JSONata",
   "Comment": "Process incoming messages in batch for scheduling",
-  "StartAt": "Configure reference number",
+  "StartAt": "Load account",
   "States": {
-    "Configure reference number": {
+    "Load account": {
+      "Type": "Task",
+      "Resource": "${DynamoDbGetItem}",
+      "Arguments": {
+        "TableName": "${TableName}",
+        "Key": {
+          "pk": {
+            "S": "{% $states.context.Execution.Input.detail.accountId %}"
+          },
+          "sk": {
+            "S": "account"
+          }
+        }
+      },
+      "Next": "Does account exist?",
+      "Output": "{% {\"detail\": $states.context.Execution.Input.detail, \"account\": $states.result }%}"
+    },
+    "Does account exist?": {
       "Type": "Choice",
       "Choices": [
         {
-          "Condition": "{% $exists($states.input.detail.referenceNumber) %}",
-          "Next": "Requires verification?",
+          "Next": "Configure reference number",
+          "Condition": "{% $exists($states.input.account.Item) %}",
           "Assign": {
-            "referenceNumber": "{% $states.input.detail.referenceNumber %}",
-            "accountId": "{% $states.context.Execution.Input.accountId %}"
-          }
-        },
-        {
-          "Condition": "{% $not($exists($states.input.detail.referenceNumber)) %}",
-          "Next": "Requires verification?",
-          "Assign": {
-            "referenceNumber": "{% $uuid() %}",
-            "accountId": "{% $states.context.Execution.Input.accountId %}"
+            "account": "{% $states.input.account.Item %}"
           }
         }
       ],
       "Default": "Stop execution"
     },
-    "Requires verification?": {
+    "Configure reference number": {
       "Type": "Choice",
       "Choices": [
         {
-          "Next": "Create verification email",
-          "Condition": "{% $verifyMessages = true %}"
+          "Condition": "{% $exists($states.input.detail.referenceNumber) %}",
+          "Next": "Save messages",
+          "Assign": {
+            "referenceNumber": "{% $states.input.detail.referenceNumber %}",
+            "accountId": "{% $states.context.Execution.Input.detail.accountId %}"
+          }
+        },
+        {
+          "Condition": "{% $not($exists($states.input.detail.referenceNumber)) %}",
+          "Next": "Save messages",
+          "Assign": {
+            "referenceNumber": "{% $uuid() %}",
+            "accountId": "{% $states.context.Execution.Input.detail.accountId %}"
+          }
         }
       ],
-      "Default": "Iterate messages"
+      "Default": "Stop execution"
     },
-    "Create verification email": {
+    "Save messages": {
       "Type": "Task",
       "Resource": "${LambdaInvoke}",
       "Arguments": {
-        "FunctionName": "${CreateVerificationEmail}",
+        "FunctionName": "${SaveMessages}",
         "Payload": {
-
+          "accountId": "{% $accountId %}",
+          "referenceNumber": "{% $referenceNumber %}",
+          "messages": "{% $states.context.Execution.Input.detail.messages %}"
         }
       },
+      "Output": "{% $states.result.Payload %}",
       "Retry": [
         {
           "ErrorEquals": [
@@ -55,6 +78,43 @@
           "IntervalSeconds": 1,
           "MaxAttempts": 3,
           "BackoffRate": 2
+        }
+      ],
+      "Next": "Requires verification?"
+    },
+    "Requires verification?": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Next": "Send verification email",
+          "Condition": "{% $states.context.Execution.Input.detail.verifyMessages = true %}"
+        }
+      ],
+      "Default": "Iterate messages"
+    },
+    "Send verification email": {
+      "Type": "Task",
+      "Resource": "${EventBridgePutEventsAndWait}",
+      "HeartbeatSeconds": 86400,
+      "Arguments": {
+        "Entries": [
+          {
+            "Detail": {
+              "referenceNumber": "{% $referenceNumber %}",
+              "taskToken": "{% $states.context.Task.Token %}",
+              "contact": "{% $account.contact.S %}"
+            },
+            "DetailType": "Send Review Email",
+            "Source": "scheduler"
+          }
+        ]
+      },
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.HeartbeatTimeout"
+          ],
+          "Next": "Stop execution"
         }
       ],
       "Next": "Iterate messages"
@@ -99,7 +159,8 @@
             "Resource": "${DynamoDbQuery}",
             "Assign": {
               "schedule": "{% $states.result.Items %}"
-            }
+            },
+            "Output": "{% $states.input %}"
           },
           "Has schedule items?": {
             "Type": "Choice",
@@ -148,7 +209,7 @@
             "Resource": "${LambdaInvoke}",
             "Arguments": {
               "FunctionName": "${CalculateScheduleFunction}",
-              "Payload": "{% { \"post\": $states.input.detail, \"schedule\": $schedule, \"timestamp\": $states.context.Execution.Input.startTime } %}"
+              "Payload": "{% { \"accountId\": $accountId, \"post\": $states.input.messageDetail, \"schedule\": $schedule, \"timestamp\": $states.context.Execution.Input.startTime } %}"
             },
             "Retry": [
               {

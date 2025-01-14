@@ -1,5 +1,8 @@
+// GET /accounts
+
 import { DynamoDBClient, QueryCommand } from "@aws-sdk/client-dynamodb";
 import { marshall } from "@aws-sdk/util-dynamodb";
+import { jsonResponse } from "../utils/helpers.mjs";
 
 const ddb = new DynamoDBClient();
 
@@ -18,23 +21,11 @@ export const handler = async () => {
     }));
 
     const accounts = data.Items || [];
-    const htmlResponse = getHtml(accounts);
-    return {
-      statusCode: 200,
-      headers: {
-        'Content-Type': 'text/html'
-      },
-      body: htmlResponse
-    };
+    const html = getHtml(accounts);
+    return html(html);
   } catch (err) {
     console.error(err);
-    return {
-      statusCode: 500,
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ error: 'Something went wrong' })
-    };
+    return jsonResponse(500, { message: 'Something went wrong' });
   }
 };
 

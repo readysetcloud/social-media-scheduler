@@ -9,6 +9,8 @@ tags:
       Operations to manage maintenance of a social media account
   - name: Auth
     description: Operations to handle authN and authZ
+  - name: Schedule
+    description: Operations to manage scheduling posts
 
 x-amazon-apigateway-cors:
   allowOrigins:
@@ -186,6 +188,89 @@ paths:
         500:
           $ref: '#/components/responses/InternalServerError'
 
+  /confirmations/{referenceNumber}:
+    parameters:
+      - $ref: '#/components/parameters/referenceNumber'
+      - $ref: '#/components/parameters/token'
+    get:
+      summary: Resumes scheduling posts
+      description: For posts going through a verification flow, resumes the process after human validation
+      tags:
+        - Schedule
+      responses:
+        200:
+          description: The request succeeded and an auth url is returned
+        404:
+          $ref: '#/components/responses/NotFound'
+        500:
+          $ref: '#/components/responses/InternalServerError'
+
+  /confirmations/{referenceNumber}/messages:
+    parameters:
+      - $ref: '#/components/parameters/referenceNumber'
+      - $ref: '#/components/parameters/token'
+    get:
+      summary: Review messages
+      description: Verify message content before sending
+      tags:
+        - Schedule
+      responses:
+        200:
+          description: The request succeeded and the item is included in the response.
+          content:
+            text/html:
+              schema:
+                type: string
+        404:
+          $ref: '#/components/responses/NotFound'
+        500:
+          $ref: '#/components/responses/InternalServerError'
+
+  /confirmations/{referenceNumber}/messages/{messageId}:
+    parameters:
+      - $ref: '#/components/parameters/referenceNumber'
+      - $ref: '#/components/parameters/token'
+      - name: messageId
+        in: path
+        description: Identifier for a message
+        required: true
+        example: kdsfgjlksdfg-0
+        schema:
+          type: string
+    put:
+      summary: Update message
+      description: Update information about a message
+      tags:
+        - Schedule
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                message:
+                  type: string
+                  minLength: 1
+              required:
+                - message
+      responses:
+        204:
+          $ref: '#/components/responses/NoContentUpdate'
+        404:
+          $ref: '#/components/responses/NotFound'
+        500:
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      summary: Delete a message
+      description: Deletes a proposed message to be sent
+      tags:
+        - Messages
+      responses:
+        204:
+          $ref: '#/components/responses/NoContentUpdate'
+        500:
+          $ref: '#/components/responses/InternalServerError'
+
 components:
   parameters:
     accountId:
@@ -194,6 +279,24 @@ components:
       description: Identifier for an account
       required: true
       example: 09sl3415098gplmn
+      schema:
+        type: string
+
+    referenceNumber:
+      name: referenceNumber
+      in: path
+      description: Identifier for a scheduling batch
+      required: true
+      example: argkasdfguaksdfna
+      schema:
+        type: string
+
+    token:
+      name: token
+      in: query
+      description: Temporary auth token
+      required: true
+      example: kfrkjkjbnmfk
       schema:
         type: string
 

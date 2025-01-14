@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Review Social Media Messages</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f4f4f4;
+      margin: 0;
+      padding: 0;
+    }
+    .container {
+      max-width: 600px;
+      margin: 20px auto;
+      background: #ffffff;
+      border-radius: 10px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      overflow: hidden;
+    }
+    .header {
+      background-color: #219EFF;
+      color: #000000;
+      padding: 20px;
+      text-align: center;
+    }
+    .content {
+      padding: 20px;
+    }
+    .message {
+      margin-bottom: 20px;
+      border-bottom: 1px solid #dddddd;
+      padding-bottom: 15px;
+    }
+    .message:last-child {
+      border-bottom: none;
+    }
+    .footer {
+      padding: 20px;
+      text-align: center;
+      background-color: #f9f9f9;
+    }
+    .button {
+      background-color: #219EFF;
+      color: #000000;
+      text-decoration: none;
+      padding: 10px 20px;
+      border-radius: 5px;
+      display: inline-block;
+      font-weight: bold;
+    }
+    .button:hover {
+      background-color: #45a049;
+    }
+    .secondary-button {
+      background-color: #555555;
+      margin-left: 10px;
+    }
+    .secondary-button:hover {
+      background-color: #444444;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Review Social Media Messages</h1>
+    </div>
+    <div class="content">
+      {{#each messages}}
+      <div class="message">
+        <p><strong>Platform:</strong> {{platform}}</p>
+        <p><strong>Message:</strong> {{message}}</p>
+      </div>
+      {{/each}}
+    </div>
+    <div class="footer">
+      <a href="{{baseUrl}}/confirmations/{{referenceNumber}}?token={{token}}" class="button">Approve and Schedule</a>
+      <a href="{{baseUrl}}/confirmations/{{referenceNumber}}/messages?token={{token}}" class="button secondary-button">Review</a>
+    </div>
+  </div>
+</body>
+</html>

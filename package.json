@@ -9,7 +9,8 @@
   "author": "allenheltondev",
   "license": "ISC",
   "dependencies": {
-    "@aws-lambda-powertools/parameters": "^2.2.0",
+    "@aws-lambda-powertools/parameters": "^2.13.1",
+    "@gomomento/sdk": "^1.106.0",
     "crypto-js": "^4.2.0",
     "discord.js": "^14.15.3",
     "handlebars": "^4.7.8",

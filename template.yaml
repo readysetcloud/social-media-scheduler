@@ -31,6 +31,12 @@ Parameters:
   BaseUrl:
     Type: String
     Default: ''
+  MomentoApiKey:
+    Type: String
+    Default: ''
+  CacheName:
+    Type: String
+    Default: readysetcloud
 
 Metadata:
   esbuild-properties: &esbuild-properties
@@ -174,24 +180,6 @@ Resources:
           - send-x-post.mjs
     Properties:
       Handler: send-x-post.handler
-      Policies:
-        - AWSLambdaBasicExecutionRole
-        - Version: 2012-10-17
-          Statement:
-            - Effect: Allow
-              Action: ssm:GetParameter
-              Resource: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/social-media/*
-
-  UploadMediaToXFunction:
-    Type: AWS::Serverless::Function
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        <<: *esbuild-properties
-        EntryPoints:
-          - upload-media-to-x.mjs
-    Properties:
-      Handler: upload-media-to-x.handler
       Policies:
         - AWSLambdaBasicExecutionRole
         - Version: 2012-10-17
@@ -406,7 +394,7 @@ Resources:
       Environment:
         Variables:
           TABLE_NAME: !Ref PostScheduleTable
-          SEND_TWITTER_POST_ARN: !GetAtt SendXPostFunction.Arn
+          SEND_X_POST_ARN: !GetAtt SendXPostFunction.Arn
           SEND_DISCORD_POST_ARN: !GetAtt SendDiscordMessageFunction.Arn
       Events:
         TestEvent:
@@ -415,6 +403,72 @@ Resources:
             ApiId: !Ref AccountApi
             Path: /accounts/{accountId}/messages
             Method: POST
+
+  GetXRedirectFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        <<: *esbuild-properties
+        EntryPoints:
+          - get-x-redirect.mjs
+    Properties:
+      Handler: get-x-redirect.handler
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action: ssm:GetParameter
+              Resource: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/social-media/*
+      Environment:
+        Variables:
+          CACHE_NAME: !Ref CacheName
+          X_CALLBACK_URL: !Sub ${BaseUrl}/x/redirect
+          MOMENTO_API_KEY: !Ref MomentoApiKey
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AccountApi
+            Path: /x/login
+            Method: GET
+
+  HandleXRedirectFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        <<: *esbuild-properties
+        EntryPoints:
+          - handle-x-redirect.mjs
+    Properties:
+      Handler: handle-x-redirect.handler
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action: ssm:GetParameter
+              Resource: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/social-media/*
+            - Effect: Allow
+              Action: ssm:PutParameter
+              Resource: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/social-media/*
+            - Effect: Allow
+              Action: dynamodb:PutItem
+              Resource: !GetAtt PostScheduleTable.Arn
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref PostScheduleTable
+          CACHE_NAME: !Ref CacheName
+          MOMENTO_API_KEY: !Ref MomentoApiKey
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AccountApi
+            Path: /x/redirect
+            Method: GET
 
   CaptureLinkedInTokenFunction:
     Type: AWS::Serverless::Function
@@ -657,6 +711,7 @@ Resources:
         DynamoDbQuery: !Sub arn:${AWS::Partition}:states:::aws-sdk:dynamodb:query
         DynamoDbPutItem: !Sub arn:${AWS::Partition}:states:::dynamodb:putItem
         DynamoDbGetItem: !Sub arn:${AWS::Partition}:states:::dynamodb:getItem
+        DynamoDbUpdateItem: !Sub arn:${AWS::Partition}:states:::dynamodb:updateItem
         UnmarshallDataFunction: "{{resolve:ssm:/serverless-toolbox/marshall-unmarshall-data}}"
         CalculateScheduleFunction: !GetAtt CalculateScheduledTimeFunction.Arn
         LambdaInvoke: !Sub arn:${AWS::Partition}:states:::lambda:invoke
@@ -687,6 +742,7 @@ Resources:
               Action:
                 - dynamodb:PutItem
                 - dynamodb:GetItem
+                - dynamodb:UpdateItem
               Resource: !GetAtt PostScheduleTable.Arn
             - Effect: Allow
               Action: dynamodb:Query
@@ -770,11 +826,12 @@ Resources:
       DefinitionUri: state-machines/send-social-post.asl.json
       DefinitionSubstitutions:
         LambdaInvoke: !Sub arn:${AWS::Partition}:states:::lambda:invoke
-        SendTwitterPost: !GetAtt SendXPostFunction.Arn
-        UploadImageToTwitter: !GetAtt UploadMediaToXFunction.Arn
+        SendXPost: !GetAtt SendXPostFunction.Arn
         SendDiscordMessage: !GetAtt SendDiscordMessageFunction.Arn
         EventBridgePutEvents: !Sub arn:${AWS::Partition}:states:::events:putEvents
-        DynamoDbDeleteItem: !Sub arn:${AWS::Partition}:states:::dynamodb:deleteItem
+        DynamoDbGetItem: !Sub arn:${AWS::Partition}:states:::dynamodb:getItem
+        DynamoDbUpdateItem: !Sub arn:${AWS::Partition}:states:::dynamodb:updateItem
+        UnmarshallDataFunction: "{{resolve:ssm:/serverless-toolbox/marshall-unmarshall-data}}"
         TableName: !Ref PostScheduleTable
       Policies:
         - Version: 2012-10-17
@@ -783,13 +840,15 @@ Resources:
               Action: lambda:InvokeFunction
               Resource:
                 - !GetAtt SendXPostFunction.Arn
-                - !GetAtt UploadMediaToXFunction.Arn
                 - !GetAtt SendDiscordMessageFunction.Arn
+                - "{{resolve:ssm:/serverless-toolbox/marshall-unmarshall-data}}"
             - Effect: Allow
               Action: events:PutEvents
               Resource: !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:event-bus/default
             - Effect: Allow
-              Action: dynamodb:DeleteItem
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:UpdateItem
               Resource: !GetAtt PostScheduleTable.Arn
 
   SendSocialPostSchedulerRole:

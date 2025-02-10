@@ -117,7 +117,7 @@ paths:
                   minLength: 1
                 platform:
                   type: string
-                  enum: [twitter, linkedIn, discord]
+                  enum: [x, linkedIn, discord]
               required:
                 - message
                 - platform
@@ -315,7 +315,7 @@ components:
     AccountDetail:
       type: object
       properties:
-        twitter:
+        x:
           type: object
           properties:
             apiKey:

@@ -153,15 +153,15 @@ const getFormHtml = (account) => `
   <form id="apiKeysForm">
     <h2>Configure ${account.name} API Keys</h2>
     <fieldset>
-      <legend>Twitter</legend>
-      <div class="help-text">You can register for a <a href="https://developer.twitter.com/en/portal/petition/essential/terms?plan=free">Twitter Developer account</a> to get the info required for this form.</div>
+      <legend>X</legend>
+      <div class="help-text">You can register for a <a href="https://developer.twitter.com/en/portal/petition/essential/terms?plan=free">X Developer account</a> to get the info required for this form.</div>
       <div class="form-group">
         <label for="handle">Handle</label>
-        <input id="handle" name="handle" value="${account.twitter?.handle ?? ''}" required>
+        <input id="handle" name="handle" value="${account.x?.handle ?? ''}" required>
       </div>
-      ${account.twitter?.status == 'active' ? `<div class="hint-text">Credentials are saved in the system but are omitted here for security.</div>
+      ${account.x?.status == 'active' ? `<div class="hint-text">Credentials are saved in the system but are omitted here for security.</div>
         <div class="top-margin">
-          <input type="checkbox" id="twitterRemoveCredentials" name="twitterRemoveCredentials" value="false">
+          <input type="checkbox" id="xRemoveCredentials" name="xRemoveCredentials" value="false">
           <span>Remove saved credentials</span>
         </div>
         <hr/>
@@ -232,14 +232,14 @@ const getFormHtml = (account) => `
       const form = document.getElementById('apiKeysForm');
       const formData = new FormData(form);
       const data = {
-        twitter: {
+        x: {
           apiKey: formData.get('apiKey'),
           apiKeySecret: formData.get('apiKeySecret'),
           bearerToken: formData.get('bearerToken'),
           handle: formData.get('handle'),
           accessToken: formData.get('accessToken'),
           accessTokenSecret: formData.get('accessTokenSecret'),
-          removeCredentials: formData.get('twitterRemoveCredentials')
+          removeCredentials: formData.get('xRemoveCredentials')
         },
         linkedIn: {
           organizationId: formData.get('linkedInEntity'),

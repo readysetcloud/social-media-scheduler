@@ -34,8 +34,8 @@ export const handler = async (state) => {
       return { id: response.id };
     } else {
       console.error(`Channel ${channelId} not found`);
+      throw new Error(`Channel ${channelId} not found`);
     }
-    return { success: false };
   } catch (err) {
     console.error(err);
     throw err;

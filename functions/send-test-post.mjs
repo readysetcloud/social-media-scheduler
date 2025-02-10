@@ -28,8 +28,8 @@ export const handler = async (event) => {
     let url;
     let message;
     switch (data.platform) {
-      case 'twitter':
-        url = await sendTweet(account, data.message);
+      case 'x':
+        url = await sendXPost(account, data.message);
         break;
       case 'linkedIn':
         url = await sendLinkedInPost(account, data.message);
@@ -55,10 +55,10 @@ export const handler = async (event) => {
   }
 };
 
-const sendTweet = async (account, message) => {
-  if (account.twitter?.status == 'active') {
+const sendXPost = async (account, message) => {
+  if (account.x?.status == 'active') {
     const response = await lambda.send(new InvokeCommand({
-      FunctionName: process.env.SEND_TWITTER_POST_ARN,
+      FunctionName: process.env.SEND_X_POST_ARN,
       Payload: JSON.stringify({
         accountId: account.pk,
         message
@@ -66,7 +66,7 @@ const sendTweet = async (account, message) => {
     }));
 
     const data = JSON.parse(Buffer.from(response.Payload).toString());
-    return `https://x.com/${account.twitter.handle}/status/${data.id}`;
+    return `https://x.com/${account.x.handle}/status/${data.id}`;
   }
 };
 

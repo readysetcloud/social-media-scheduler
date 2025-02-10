@@ -22,7 +22,11 @@ export const handler = async (state) => {
           pk: `${state.accountId}#${message.id}`,
           sk: 'message',
           ...message,
-          campaign: state.referenceNumber
+          campaign: state.referenceNumber,
+          status: 'unscheduled',
+          type: `${state.accountId}#${message.platform}`,
+          sort: 'DO_NOT_SEND',
+          ttl: Math.floor(Date.now() / 1000 + 25 * 60 * 60) // Set a cleanup date if workflow fails
         })
       }))
     ));

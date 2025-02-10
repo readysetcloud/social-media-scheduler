@@ -45,7 +45,7 @@ export const handler = async (event) => {
 
     await sfn.send(new SendTaskSuccessCommand({
       taskToken: Item.taskToken.S,
-      output: JSON.stringify({ detail: { messages } })
+      output: JSON.stringify(messages)
     }));
 
     await ddb.send(new DeleteItemCommand({
@@ -56,7 +56,7 @@ export const handler = async (event) => {
       })
     }));
 
-    return htmlResponse(`<html>👍</html>`);
+    return htmlResponse(`<html><body>👍</body></html>`);
   } catch (err) {
     console.error(err);
     return jsonResponse(500, { message: 'Something went wrong' });

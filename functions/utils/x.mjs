@@ -4,7 +4,21 @@ import CryptoJS from 'crypto-js';
 
 let accounts = {};
 
-export const getTwitterClient = async (accountId) => {
+export const getXAppCredentials = async () => {
+  let keys = await getAccountKeys('readysetcloud');
+  keys = JSON.parse(keys);
+
+  return { appKey: keys.apiKey, appSecret: keys.appSecret };
+};
+
+export const getXClient = async () => {
+  const credentials = await getXAppCredentials();
+
+  const client = new TwitterApi(credentials);
+  return client;
+};
+
+export const getClient = async (accountId) => {
   let keys = await getAccountKeys(accountId);
   const twitterClient = new TwitterApi({
     appKey: keys.apiKey,
@@ -16,7 +30,7 @@ export const getTwitterClient = async (accountId) => {
   return await twitterClient.readWrite;
 };
 
-export const getTwitterOauthHeader = async (accountId, postUrl) => {
+export const getOauthHeader = async (accountId, postUrl) => {
   let keys = await getAccountKeys(accountId);
   if (typeof keys == 'string') {
     keys = JSON.parse(keys);
@@ -32,12 +46,12 @@ export const getTwitterOauthHeader = async (accountId, postUrl) => {
     keys.bearerToken = await getBearerToken(keys.apiKey, keys.apiKeySecret);
   }
 
-  const oauthHeader = getOauthHeader(keys, postUrl);
+  const oauthHeader = getHeader(keys, postUrl);
 
   return oauthHeader;
 };
 
-const getOauthHeader = (keys, postUrl) => {
+const getHeader = (keys, postUrl) => {
   const oauth_consumer_key = keys.apiKey;
   const oauth_consumer_secret = keys.apiKeySecret;
   const oauth_token = keys.accessToken;

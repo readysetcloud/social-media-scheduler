@@ -11,6 +11,9 @@
       margin: 0;
       padding: 0;
     }
+    a {
+      color: black;
+    }
     .container {
       max-width: 600px;
       margin: 20px auto;
@@ -43,7 +46,7 @@
     }
     .button {
       background-color: #219EFF;
-      color: #000000;
+      color: black;
       text-decoration: none;
       padding: 10px 20px;
       border-radius: 5px;
@@ -51,14 +54,14 @@
       font-weight: bold;
     }
     .button:hover {
-      background-color: #45a049;
+      background-color: #2172ff;
     }
     .secondary-button {
-      background-color: #555555;
+      background-color: #ae21ff;
       margin-left: 10px;
     }
     .secondary-button:hover {
-      background-color: #444444;
+      background-color: #f121ff;
     }
   </style>
 </head>
@@ -70,7 +73,7 @@
     <div class="content">
       {{#each messages}}
       <div class="message">
-        <p><strong>Platform:</strong> {{platform}}</p>
+        <p><strong>Platform:</strong> {{platform}} <span class="text-gray-600">({{scheduledDate}} UTC)</span></p>
         <p><strong>Message:</strong> {{message}}</p>
       </div>
       {{/each}}

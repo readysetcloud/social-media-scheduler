@@ -18,7 +18,10 @@
         }
       },
       "Next": "Does account exist?",
-      "Output": "{% {\"detail\": $states.context.Execution.Input.detail, \"account\": $states.result }%}"
+      "Output": {
+        "detail": "{% $states.context.Execution.Input.detail %}",
+        "account": "{% $states.result %}"
+      }
     },
     "Does account exist?": {
       "Type": "Choice",
@@ -80,46 +83,9 @@
           "BackoffRate": 2
         }
       ],
-      "Next": "Requires verification?"
+      "Next": "Determine message scheduled dates"
     },
-    "Requires verification?": {
-      "Type": "Choice",
-      "Choices": [
-        {
-          "Next": "Send verification email",
-          "Condition": "{% $states.context.Execution.Input.detail.verifyMessages = true %}"
-        }
-      ],
-      "Default": "Iterate messages"
-    },
-    "Send verification email": {
-      "Type": "Task",
-      "Resource": "${EventBridgePutEventsAndWait}",
-      "HeartbeatSeconds": 86400,
-      "Arguments": {
-        "Entries": [
-          {
-            "Detail": {
-              "referenceNumber": "{% $referenceNumber %}",
-              "taskToken": "{% $states.context.Task.Token %}",
-              "contact": "{% $account.contact.S %}"
-            },
-            "DetailType": "Send Review Email",
-            "Source": "scheduler"
-          }
-        ]
-      },
-      "Catch": [
-        {
-          "ErrorEquals": [
-            "States.HeartbeatTimeout"
-          ],
-          "Next": "Stop execution"
-        }
-      ],
-      "Next": "Iterate messages"
-    },
-    "Iterate messages": {
+    "Determine message scheduled dates": {
       "Type": "Map",
       "ItemProcessor": {
         "ProcessorConfig": {
@@ -132,7 +98,7 @@
             "Choices": [
               {
                 "Condition": "{% $exists($states.input.messageDetail.scheduledDate) %}",
-                "Next": "Does EB schedule already exist?",
+                "Next": "Update message status - pending",
                 "Assign": {
                   "scheduledDate": "{% $states.input.messageDetail.scheduledDate %}"
                 }
@@ -184,7 +150,11 @@
             "Resource": "${LambdaInvoke}",
             "Arguments": {
               "FunctionName": "${UnmarshallDataFunction}",
-              "Payload": "{% {\"marshall\": false, \"isDynamoDBQuery\": true, \"data\": $schedule } %}"
+              "Payload": {
+                "marshall": false,
+                "isDynamoDBQuery": true,
+                "data": "{% $schedule %}"
+              }
             },
             "Retry": [
               {
@@ -201,39 +171,136 @@
             ],
             "Next": "Get schedule date",
             "Assign": {
-              "schedule": "{% $states.result.Payload.data %}"
+              "schedule": "{% $states.result.Payload.data[sort !=\"DO_NOT_SEND\"] ? $states.result.Payload.data[sort !=\"DO_NOT_SEND\"] : [] %}"
+            },
+            "Output": {
+              "messageDetail": "{% $states.input.messageDetail %}"
             }
+
           },
           "Get schedule date": {
             "Type": "Task",
             "Resource": "${LambdaInvoke}",
             "Arguments": {
               "FunctionName": "${CalculateScheduleFunction}",
-              "Payload": "{% { \"accountId\": $accountId, \"post\": $states.input.messageDetail, \"schedule\": $schedule, \"timestamp\": $states.context.Execution.Input.startTime } %}"
+              "Payload": {
+                "accountId": "{% $accountId %}",
+                "post": "{% $states.input.messageDetail %}",
+                "schedule": "{% $schedule %}",
+                "timestamp": "{% $now() %}"
+              }
             },
             "Retry": [
               {
                 "ErrorEquals": [
-                  "Lambda.ServiceException",
-                  "Lambda.AWSLambdaException",
-                  "Lambda.SdkClientException",
-                  "Lambda.TooManyRequestsException"
+                  "States.ALL"
                 ],
-                "IntervalSeconds": 1,
-                "MaxAttempts": 3,
-                "BackoffRate": 2
+                "IntervalSeconds": 5,
+                "MaxAttempts": 5,
+                "BackoffRate": 5
               }
             ],
-            "Next": "Does EB schedule already exist?",
+            "Next": "Update message status - pending",
+            "Output": {
+              "messageDetail": "{% $states.input.messageDetail %}"
+            },
             "Assign": {
               "scheduledDate": "{% $states.result.Payload.date %}"
             }
           },
-          "Does EB schedule already exist?": {
+          "Update message status - pending": {
             "Type": "Task",
-            "Next": "Update EB schedule",
+            "Resource": "${DynamoDbUpdateItem}",
             "Arguments": {
-              "Name": "{% $accountId & \"-\" & $states.input.messageDetail.platform & \"-\" & $referenceNumber %}",
+              "TableName": "${TableName}",
+              "Key": {
+                "pk": {
+                  "S": "{% $accountId & \"#\" & $states.input.messageDetail.id %}"
+                },
+                "sk": {
+                  "S": "message"
+                }
+              },
+              "UpdateExpression": "SET #status = :status, #scheduledDate = :scheduledDate, #lastUpdate = :lastUpdate",
+              "ExpressionAttributeNames": {
+                "#status": "status",
+                "#scheduledDate": "scheduledDate",
+                "#lastUpdate": "lastUpdate"
+              },
+              "ExpressionAttributeValues": {
+                ":status": {
+                  "S": "pending"
+                },
+                ":scheduledDate": {
+                  "S": "{% $scheduledDate %}"
+                },
+                ":lastUpdate": {
+                  "S": "{% $now() %}"
+                }
+              }
+            },
+            "End": true,
+            "Output": "{% $merge([$states.input.messageDetail, { \"scheduledDate\": $scheduledDate }]) %}"
+          }
+        }
+      },
+      "Next": "Requires verification?",
+      "Items": "{% $states.input.messages %}",
+      "MaxConcurrency": 1,
+      "ItemSelector": {
+        "messageDetail": "{% $states.context.Map.Item.Value %}"
+      }
+    },
+    "Requires verification?": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Next": "Send verification email",
+          "Condition": "{% $states.context.Execution.Input.detail.verifyMessages = true %}"
+        }
+      ],
+      "Default": "Schedule messages"
+    },
+    "Send verification email": {
+      "Type": "Task",
+      "Resource": "${EventBridgePutEventsAndWait}",
+      "HeartbeatSeconds": 86400,
+      "Arguments": {
+        "Entries": [
+          {
+            "Detail": {
+              "referenceNumber": "{% $referenceNumber %}",
+              "taskToken": "{% $states.context.Task.Token %}",
+              "contact": "{% $account.contact.S %}"
+            },
+            "DetailType": "Send Review Email",
+            "Source": "scheduler"
+          }
+        ]
+      },
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.HeartbeatTimeout"
+          ],
+          "Next": "Stop execution"
+        }
+      ],
+      "Next": "Schedule messages"
+    },
+    "Schedule messages": {
+      "Type": "Map",
+      "ItemProcessor": {
+        "ProcessorConfig": {
+          "Mode": "INLINE"
+        },
+        "StartAt": "Is message already scheduled?",
+        "States": {
+          "Is message already scheduled?": {
+            "Type": "Task",
+            "Next": "Update message posting details",
+            "Arguments": {
+              "Name": "{% $accountId & \"-\" & $states.input.messageDetail.platform & \"-\" & $states.input.messageDetail.id %}",
               "GroupName": "social"
             },
             "Resource": "${SchedulerGetSchedule}",
@@ -242,115 +309,28 @@
                 "ErrorEquals": [
                   "Scheduler.ResourceNotFoundException"
                 ],
-                "Next": "Create one-time EB schedule"
-              }
-            ]
-          },
-          "Update EB schedule": {
-            "Type": "Task",
-            "Next": "Has campaign?",
-            "Arguments": {
-              "ActionAfterCompletion": "DELETE",
-              "FlexibleTimeWindow": {
-                "Mode": "FLEXIBLE",
-                "MaximumWindowInMinutes": 8
-              },
-              "Name": "{% $accountId & \"-\" & $states.input.messageDetail.platform & \"-\" & $referenceNumber %}",
-              "GroupName": "social",
-              "ScheduleExpression": "{% \"at(\" & $scheduledDate & \")\" %}",
-              "Target": {
-                "Arn": "${SendSocialPostStateMachine}",
-                "RoleArn": "${SchedulerRole}",
-                "DeadLetterConfig": {
-                  "Arn": "${DeadLetterQueue}"
-                },
-                "Input": {
-                  "referenceNumber": "$referenceNumber",
-                  "detail": "$states.input.messageDetail"
+                "Next": "Schedule message for posting",
+                "Output": {
+                  "messageDetail": "{% $states.input.messageDetail %}"
                 }
-              }
-            },
-            "Resource": "${SchedulerUpdateSchedule}"
-          },
-          "Has campaign?": {
-            "Type": "Choice",
-            "Choices": [
-              {
-                "Condition": "{% $exists($states.input.messageDetail.campaign) %}",
-                "Next": "Save EB schedule with campaign"
               }
             ],
-            "Default": "Save EB schedule without campaign"
+            "Output": {
+              "messageDetail": "{% $states.input.messageDetail %}"
+            }
           },
-          "Save EB schedule with campaign": {
+          "Update message posting details": {
             "Type": "Task",
-            "Resource": "${DynamoDbPutItem}",
-            "Arguments": {
-              "TableName": "${TableName}",
-              "Item": {
-                "pk": {
-                  "S": "{% $referenceNumber %}"
-                },
-                "sk": {
-                  "S": "post"
-                },
-                "accountId": { "S": "{% $accountId %}" },
-                "platform": { "S": "{% $states.input.messageDetail.platform %}" },
-                "type": {
-                  "S": "{% $accountId & \"#\" & $states.input.messageDetail.platform %}"
-                },
-                "sort": {
-                  "S": "{% $scheduledDate %}"
-                },
-                "message": {
-                  "S": "{% $states.input.messageDetail.message %}"
-                },
-                "campaign": {
-                  "S": "{% $accountId & \"#\" & $states.input.messageDetail.campaign %}"
-                }
-              }
-            },
-            "End": true
-          },
-          "Save EB schedule without campaign": {
-            "Type": "Task",
-            "Resource": "${DynamoDbPutItem}",
-            "Arguments": {
-              "TableName": "${TableName}",
-              "Item": {
-                "pk": {
-                  "S": "{% $referenceNumber %}"
-                },
-                "sk": {
-                  "S": "post"
-                },
-                "accountId": { "S": "{% $accountId %}" },
-                "platform": { "S": "{% $states.input.messageDetail.platform %}" },
-                "type": {
-                  "S": "{% $accountId & \"#\" & $states.input.messageDetail.platform %}"
-                },
-                "sort": {
-                  "S": "{% $scheduledDate %}"
-                },
-                "message": {
-                  "S": "{% $states.input.messageDetail.message %}"
-                }
-              }
-            },
-            "End": true
-          },
-          "Create one-time EB schedule": {
-            "Type": "Task",
-            "Next": "Send schedule created event",
+            "Next": "Update message status - scheduled",
             "Arguments": {
               "ActionAfterCompletion": "DELETE",
               "FlexibleTimeWindow": {
                 "Mode": "FLEXIBLE",
-                "MaximumWindowInMinutes": 8
+                "MaximumWindowInMinutes": 3
               },
-              "Name": "{% $accountId & \"-\" & $states.input.messageDetail.platform & \"-\" & $referenceNumber %}",
+              "Name": "{% $accountId & \"-\" & $states.input.messageDetail.platform & \"-\" & $states.input.messageDetail.id %}",
               "GroupName": "social",
-              "ScheduleExpression": "{% \"at(\" & $scheduledDate & \")\" %}",
+              "ScheduleExpression": "{% \"at(\" & $states.input.messageDetail.scheduledDate & \")\" %}",
               "Target": {
                 "Arn": "${SendSocialPostStateMachine}",
                 "RoleArn": "${SchedulerRole}",
@@ -358,39 +338,103 @@
                   "Arn": "${DeadLetterQueue}"
                 },
                 "Input": {
-                  "referenceNumber": "{% $referenceNumber %}",
-                  "detail": "{% $states.input.messageDetail %}"
+                  "messageId": "{% $states.input.messageDetail.id %}",
+                  "accountId": "{% $accountId %}"
                 }
               }
             },
-            "Resource": "${SchedulerCreateSchedule}"
+            "Resource": "${SchedulerUpdateSchedule}",
+            "Output": {
+              "messageDetail": "{% $states.input.messageDetail %}"
+            }
           },
-          "Send schedule created event": {
+          "Schedule message for posting": {
             "Type": "Task",
-            "Resource": "${EventBridgePutEvents}",
+            "Next": "Update message status - scheduled",
             "Arguments": {
-              "Entries": [
-                {
-                  "Detail": {
-                    "referenceNumber": "{% $referenceNumber %}",
-                    "scheduledDate": "{% $scheduledDate %}",
-                    "accountId": "{% $accountId %}"
-                  },
-                  "DetailType": "Post Scheduled",
-                  "Source": "SocialPostScheduler"
+              "ActionAfterCompletion": "DELETE",
+              "FlexibleTimeWindow": {
+                "Mode": "FLEXIBLE",
+                "MaximumWindowInMinutes": 3
+              },
+              "Name": "{% $accountId & \"-\" & $states.input.messageDetail.platform & \"-\" & $states.input.messageDetail.id %}",
+              "GroupName": "social",
+              "ScheduleExpression": "{% \"at(\" & $states.input.messageDetail.scheduledDate & \")\" %}",
+              "Target": {
+                "Arn": "${SendSocialPostStateMachine}",
+                "RoleArn": "${SchedulerRole}",
+                "DeadLetterConfig": {
+                  "Arn": "${DeadLetterQueue}"
+                },
+                "Input": {
+                  "messageId": "{% $states.input.messageDetail.id %}",
+                  "accountId": "{% $accountId %}"
                 }
-              ]
+              }
             },
-            "Next": "Has campaign?"
+            "Resource": "${SchedulerCreateSchedule}",
+            "Output": {
+              "messageDetail": "{% $states.input.messageDetail %}"
+            }
+          },
+          "Update message status - scheduled": {
+            "Type": "Task",
+            "Resource": "${DynamoDbUpdateItem}",
+            "Arguments": {
+              "TableName": "${TableName}",
+              "Key": {
+                "pk": {
+                  "S": "{% $accountId & \"#\" & $states.input.messageDetail.id %}"
+                },
+                "sk": {
+                  "S": "message"
+                }
+              },
+              "UpdateExpression": "SET #status = :status, #scheduledDate = :scheduledDate, #lastUpdate = :lastUpdate REMOVE #ttl",
+              "ExpressionAttributeNames": {
+                "#status": "status",
+                "#scheduledDate": "sort",
+                "#lastUpdate": "lastUpdate",
+                "#ttl": "ttl"
+              },
+              "ExpressionAttributeValues": {
+                ":status": {
+                  "S": "scheduled"
+                },
+                ":scheduledDate": {
+                  "S": "{% $states.input.messageDetail.scheduledDate %}"
+                },
+                ":lastUpdate": {
+                  "S": "{% $now() %}"
+                }
+              }
+            },
+            "End": true,
+            "Output": "{% $states.input.messageDetail %}"
           }
         }
       },
-      "Next": "Success",
-      "Items": "{% $states.input.detail.messages %}",
-      "MaxConcurrency": 1,
+      "Next": "Publish messages scheduled event",
       "ItemSelector": {
         "messageDetail": "{% $states.context.Map.Item.Value %}"
       }
+    },
+    "Publish messages scheduled event": {
+      "Type": "Task",
+      "Resource": "${EventBridgePutEvents}",
+      "Arguments": {
+        "Entries": [
+          {
+            "Detail": {
+              "referenceNumber": "{% $referenceNumber %}",
+              "accountId": "{% $accountId %}"
+            },
+            "DetailType": "Messages Scheduled",
+            "Source": "SocialPostScheduler"
+          }
+        ]
+      },
+      "Next": "Success"
     },
     "Success": {
       "Type": "Succeed"

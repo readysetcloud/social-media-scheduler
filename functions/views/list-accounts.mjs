@@ -61,7 +61,7 @@ const getHtml = (accounts) => `
         <tr>
           <td><a href="/v1/accounts/${account.pk.S}">${account.name.S}</a></td>
           <td class="float-right">
-            ${account.twitter?.M?.status?.S == 'active' ? `<button class="btn btn-primary test-button" onclick="sendTestMessage('${account.pk.S}', 'twitter')">Test Twitter</button>` : ''}
+            ${account.x?.M?.status?.S == 'active' ? `<button class="btn btn-primary test-button" onclick="sendTestMessage('${account.pk.S}', 'x')">Test X</button>` : ''}
             ${account.discord?.M?.channel?.S ? `<button class="btn btn-primary test-button" onclick="sendTestMessage('${account.pk.S}', 'discord')">Test Discord</button>` : ''}
           </td>
         </tr>
@@ -133,7 +133,7 @@ const getHtml = (accounts) => `
       })
       .catch(error => {
         console.error('Error:', error);
-        alert('Failed to test Twitter');
+        alert('Failed to test X');
       });
     }
   </script>

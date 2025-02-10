@@ -1,153 +1,97 @@
 {
+  "QueryLanguage": "JSONata",
   "Comment": "Sends a social post",
-  "StartAt": "Remove From Schedule",
+  "StartAt": "Load message",
   "States": {
-    "Remove From Schedule": {
+    "Load message": {
       "Type": "Task",
-      "Resource": "${DynamoDbDeleteItem}",
-      "Parameters": {
+      "Resource": "${DynamoDbGetItem}",
+      "Arguments": {
         "TableName": "${TableName}",
         "Key": {
           "pk": {
-            "S.$": "$.referenceNumber"
+            "S": "{% $states.input.accountId & \"#\" & $states.input.messageId %}"
           },
           "sk": {
-            "S": "post"
+            "S": "message"
           }
         }
       },
-      "Next": "Switch Platform Type",
-      "ResultPath": null
+      "Next": "Does message exist?",
+      "Output": {
+        "message": "{% $states.result %}"
+      }
     },
-    "Switch Platform Type": {
+    "Does message exist?": {
       "Type": "Choice",
       "Choices": [
         {
-          "And": [
-            {
-              "Variable": "$.detail.platform",
-              "IsPresent": true
-            },
-            {
-              "Variable": "$.detail.platform",
-              "IsString": true
-            },
-            {
-              "Variable": "$.detail.platform",
-              "StringEquals": "twitter"
-            }
-          ],
-          "Next": "Has Twitter Media?"
-        },
-        {
-          "And": [
-            {
-              "Variable": "$.detail.platform",
-              "IsPresent": true
-            },
-            {
-              "Variable": "$.detail.platform",
-              "StringEquals": "discord"
-            }
-          ],
-          "Next": "Has Discord Metadata?"
+          "Next": "Unmarshall message",
+          "Condition": "{% $exists($states.input.message.Item) %}",
+          "Assign": {
+            "message": "{% $states.input.message.Item %}",
+            "accountId": "{% $states.context.Execution.Input.accountId %}",
+            "messageId": "{% $states.context.Execution.Input.messageId %}"
+          }
         }
       ],
-      "Default": "Not Supported"
+      "Default": "Successfully sent?"
     },
-    "Has Twitter Media?": {
-      "Type": "Choice",
-      "Choices": [
-        {
-          "Variable": "$.detail.image",
-          "IsPresent": true,
-          "Next": "Upload Image to Twitter"
-        },
-        {
-          "Variable": "$.detail.video",
-          "IsPresent": true,
-          "Next": "Upload Video to Twitter"
-        }
-      ],
-      "Default": "Send Twitter Post"
-    },
-    "Upload Image to Twitter": {
+    "Unmarshall message": {
       "Type": "Task",
       "Resource": "${LambdaInvoke}",
-      "Parameters": {
-        "FunctionName": "${UploadImageToTwitter}",
+      "Arguments": {
+        "FunctionName": "${UnmarshallDataFunction}",
         "Payload": {
-          "accountId.$": "$.detail.accountId",
-          "image.$": "$.detail.image"
+          "marshall": false,
+          "isDynamoDBQuery": false,
+          "data": "{% $message %}"
         }
       },
       "Retry": [
         {
           "ErrorEquals": [
-            "Lambda.ServiceException",
-            "Lambda.AWSLambdaException",
-            "Lambda.SdkClientException",
-            "Lambda.TooManyRequestsException"
+            "States.ALL"
           ],
           "IntervalSeconds": 1,
           "MaxAttempts": 3,
           "BackoffRate": 2
         }
       ],
-      "ResultPath": "$.media",
-      "ResultSelector": {
-        "id.$": "$.Payload.mediaId"
-      },
-      "Next": "Send Twitter Post With Media"
+      "Next": "Which platform?",
+      "Assign": {
+        "message": "{% $states.result.Payload.data %}"
+      }
     },
-    "Upload Video to Twitter": {
-      "Type": "Task",
-      "Resource": "${LambdaInvoke}",
-      "Parameters": {
-        "FunctionName": "${UploadImageToTwitter}",
-        "Payload": {
-          "accountId.$": "$.detail.accountId",
-          "video.$": "$.detail.video"
-        }
-      },
-      "Retry": [
+    "Which platform?": {
+      "Type": "Choice",
+      "Choices": [
         {
-          "ErrorEquals": [
-            "Lambda.ServiceException",
-            "Lambda.AWSLambdaException",
-            "Lambda.SdkClientException",
-            "Lambda.TooManyRequestsException"
-          ],
-          "IntervalSeconds": 1,
-          "MaxAttempts": 3,
-          "BackoffRate": 2
+          "Condition": "{% $message.platform = \"x\" %}",
+          "Next": "Send X post"
+        },
+        {
+          "Condition": "{% $message.platform = \"discord\" %}",
+          "Next": "Send Discord message"
         }
       ],
-      "ResultPath": "$.media",
-      "ResultSelector": {
-        "id.$": "$.Payload.mediaId"
-      },
-      "Next": "Send Twitter Post With Media"
+      "Default": "Update message status",
+      "Assign": {
+        "status": "cancelled"
+      }
     },
-    "Send Twitter Post With Media": {
+    "Send X post": {
       "Type": "Task",
       "Resource": "${LambdaInvoke}",
-      "OutputPath": "$.Payload",
-      "Parameters": {
-        "FunctionName": "${SendTwitterPost}",
-        "Payload": {
-          "message.$": "$.detail.message",
-          "accountId.$": "$.detail.accountId",
-          "mediaId.$": "$.media.id"
-        }
+      "Output": "{% $states.result.Payload %}",
+      "Arguments": {
+        "FunctionName": "${SendXPost}",
+        "Payload": "{% $merge([$message, {\"accountId\": $accountId }]) %}"
       },
       "Retry": [
         {
           "ErrorEquals": [
-            "Lambda.ServiceException",
-            "Lambda.AWSLambdaException",
-            "Lambda.SdkClientException",
-            "Lambda.TooManyRequestsException"
+            "States.ALL"
           ],
           "IntervalSeconds": 1,
           "MaxAttempts": 3,
@@ -159,80 +103,101 @@
           "ErrorEquals": [
             "States.ALL"
           ],
-          "Next": "Send Social Post Failed Event"
+          "Next": "Update message status",
+          "Assign": {
+            "status": "failed"
+          }
         }
       ],
-      "Next": "Send Social Post Sent Event"
+      "Next": "Update message status",
+      "Assign": {
+        "postId": "{% $states.result.Payload.id %}",
+        "status": "sent"
+      }
     },
-    "Not Supported": {
-      "Type": "Fail",
-      "Error": "Platform.NotSupported",
-      "Cause": "The provided platform is not supported"
-    },
-    "Send Twitter Post": {
+    "Send Discord message": {
       "Type": "Task",
       "Resource": "${LambdaInvoke}",
-      "OutputPath": "$.Payload",
-      "Parameters": {
-        "FunctionName": "${SendTwitterPost}",
-        "Payload": {
-          "message.$": "$.detail.message",
-          "accountId.$": "$.detail.accountId"
-        }
+      "Arguments": {
+        "FunctionName": "${SendDiscordMessage}",
+        "Payload": "{% $merge([$message, {\"accountId\": $accountId }]) %}"
       },
       "Retry": [
         {
           "ErrorEquals": [
-            "Lambda.ServiceException",
-            "Lambda.AWSLambdaException",
-            "Lambda.SdkClientException",
-            "Lambda.TooManyRequestsException"
+            "States.ALL"
           ],
-          "IntervalSeconds": 1,
+          "IntervalSeconds": 5,
           "MaxAttempts": 3,
           "BackoffRate": 2
         }
       ],
+      "Output": "{% $states.result.Payload %}",
       "Catch": [
         {
           "ErrorEquals": [
             "States.ALL"
           ],
-          "Next": "Send Social Post Failed Event"
+          "Next": "Update message status",
+          "Assign": {
+            "status": "failed"
+          }
         }
       ],
-      "Next": "Send Social Post Sent Event"
+      "Next": "Update message status",
+      "Assign": {
+        "postId": "{% $states.result.Payload.id %}",
+        "status": "sent"
+      }
     },
-    "Send Social Post Sent Event": {
+    "Update message status": {
       "Type": "Task",
-      "Resource": "${EventBridgePutEvents}",
-      "Parameters": {
-        "Entries": [
-          {
-            "Detail": {
-              "referenceNumber.$": "$$.Execution.Input.referenceNumber",
-              "postId.$": "$.id",
-              "accountId.$": "$$.Execution.Input.detail.accountId"
-            },
-            "DetailType": "Social Post Sent",
-            "Source": "SocialPostSender"
+      "Resource": "${DynamoDbUpdateItem}",
+      "Arguments": {
+        "TableName": "${TableName}",
+        "Key": {
+          "pk": {
+            "S": "{% $accountId & \"#\" & $messageId %}"
+          },
+          "sk": {
+            "S": "message"
           }
-        ]
+        },
+        "UpdateExpression": "SET #status = :status, #lastUpdate = :lastUpdate",
+        "ExpressionAttributeNames": {
+          "#status": "status",
+          "#lastUpdate": "lastUpdate"
+        },
+        "ExpressionAttributeValues": {
+          ":status": {
+            "S": "{% $status %}"
+          },
+          ":lastUpdate": {
+            "S": "{% $now() %}"
+          }
+        }
       },
-      "Next": "Success"
+      "Next": "Successfully sent?"
     },
-    "Success": {
-      "Type": "Succeed"
+    "Successfully sent?": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Condition": "{% $status = \"sent\" %}",
+          "Next": "Send social post sent event"
+        }
+      ],
+      "Default": "Send social post failed event"
     },
-    "Send Social Post Failed Event": {
+    "Send social post failed event": {
       "Type": "Task",
       "Resource": "${EventBridgePutEvents}",
-      "Parameters": {
+      "Arguments": {
         "Entries": [
           {
             "Detail": {
-              "referenceNumber.$": "$$.Execution.Input.referenceNumber",
-              "accountId.$": "$$.Execution.Input.detail.accountId"
+              "messageId": "{% $messageId %}",
+              "accountId": "{% $accountId %}"
             },
             "DetailType": "Social Post Failed",
             "Source": "SocialPostSender"
@@ -246,79 +211,26 @@
       "Error": "PostFailed",
       "Cause": "Something went wrong sending the post"
     },
-    "Has Discord Metadata?": {
-      "Type": "Choice",
-      "Choices": [
-        {
-          "Variable": "$.detail.metadata",
-          "IsPresent": true,
-          "Next": "Send Discord Message With Metadata"
-        }
-      ],
-      "Default": "Send Discord Message"
-    },
-    "Send Discord Message": {
+    "Send social post sent event": {
       "Type": "Task",
-      "Resource": "${LambdaInvoke}",
-      "Parameters": {
-        "FunctionName": "${SendDiscordMessage}",
-        "Payload": {
-          "message.$": "$.detail.message",
-          "accountId.$": "$.detail.accountId"
-        }
+      "Resource": "${EventBridgePutEvents}",
+      "Arguments": {
+        "Entries": [
+          {
+            "Detail": {
+              "messageId": "{% $messageId %}",
+              "postId": "{% $states.input.id %}",
+              "accountId": "{% $accountId %}"
+            },
+            "DetailType": "Social Post Sent",
+            "Source": "SocialPostSender"
+          }
+        ]
       },
-      "Retry": [
-        {
-          "ErrorEquals": [
-            "States.ALL"
-          ],
-          "IntervalSeconds": 5,
-          "MaxAttempts": 3,
-          "BackoffRate": 2
-        }
-      ],
-      "ResultPath": null,
-      "Catch": [
-        {
-          "ErrorEquals": [
-            "States.ALL"
-          ],
-          "Next": "Something went wrong"
-        }
-      ],
       "Next": "Success"
     },
-    "Send Discord Message With Metadata": {
-      "Type": "Task",
-      "Resource": "${LambdaInvoke}",
-      "Parameters": {
-        "FunctionName": "${SendDiscordMessage}",
-        "Payload": {
-          "message.$": "$.detail.message",
-          "accountId.$": "$.detail.accountId",
-          "metadata.$": "$.detail.metadata"
-        }
-      },
-      "Retry": [
-        {
-          "ErrorEquals": [
-            "States.ALL"
-          ],
-          "IntervalSeconds": 5,
-          "MaxAttempts": 3,
-          "BackoffRate": 2
-        }
-      ],
-      "ResultPath": null,
-      "Catch": [
-        {
-          "ErrorEquals": [
-            "States.ALL"
-          ],
-          "Next": "Something went wrong"
-        }
-      ],
-      "Next": "Success"
+    "Success": {
+      "Type": "Succeed"
     }
   }
 }

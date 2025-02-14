@@ -10,7 +10,7 @@
         "TableName": "${TableName}",
         "Key": {
           "pk": {
-            "S": "{% $states.input.accountId & \"#\" & $states.input.messageId %}"
+            "S": "{% $states.input.tenantId & \"#\" & $states.input.accountId & \"#\" & $states.input.messageId %}"
           },
           "sk": {
             "S": "message"
@@ -30,6 +30,7 @@
           "Condition": "{% $exists($states.input.message.Item) %}",
           "Assign": {
             "message": "{% $states.input.message.Item %}",
+            "tenantId": "{% $states.context.Execution.Input.tenantId %}",
             "accountId": "{% $states.context.Execution.Input.accountId %}",
             "messageId": "{% $states.context.Execution.Input.messageId %}"
           }
@@ -86,7 +87,7 @@
       "Output": "{% $states.result.Payload %}",
       "Arguments": {
         "FunctionName": "${SendXPost}",
-        "Payload": "{% $merge([$message, {\"accountId\": $accountId }]) %}"
+        "Payload": "{% $merge([$message, {\"accountId\": $accountId, \"tenantId\": $tenantId }]) %}"
       },
       "Retry": [
         {
@@ -120,7 +121,7 @@
       "Resource": "${LambdaInvoke}",
       "Arguments": {
         "FunctionName": "${SendDiscordMessage}",
-        "Payload": "{% $merge([$message, {\"accountId\": $accountId }]) %}"
+        "Payload": "{% $merge([$message, {\"accountId\": $accountId, \"tenantId\": $tenantId }]) %}"
       },
       "Retry": [
         {
@@ -157,7 +158,7 @@
         "TableName": "${TableName}",
         "Key": {
           "pk": {
-            "S": "{% $accountId & \"#\" & $messageId %}"
+            "S": "{% $tenantId & \"#\" & $accountId & \"#\" & $messageId %}"
           },
           "sk": {
             "S": "message"
@@ -197,7 +198,8 @@
           {
             "Detail": {
               "messageId": "{% $messageId %}",
-              "accountId": "{% $accountId %}"
+              "accountId": "{% $accountId %}",
+              "tenantId": "{% $tenantId %}"
             },
             "DetailType": "Social Post Failed",
             "Source": "SocialPostSender"
@@ -220,7 +222,8 @@
             "Detail": {
               "messageId": "{% $messageId %}",
               "postId": "{% $states.input.id %}",
-              "accountId": "{% $accountId %}"
+              "accountId": "{% $accountId %}",
+              "tenantId": "{% $tenantId %}"
             },
             "DetailType": "Social Post Sent",
             "Source": "SocialPostSender"

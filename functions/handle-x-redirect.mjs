@@ -47,7 +47,7 @@ const saveAccount = async (tenantId, accountId, accountName) => {
     TableName: process.env.TABLE_NAME,
     Item: marshall({
       pk: tenantId,
-      sk: `account#x#${accountId}`,
+      sk: `account#${accountId}`,
       id: accountId,
       name: accountName,
       platform: 'x',

@@ -10,14 +10,14 @@ let clientLoggedIn = false;
 export const handler = async (state) => {
   try {
     const token = await getSecretValue('discord');
-    let account = await getAccount(state.accountId);
+    let account = await getAccount(state.tenantId, state.accountId);
 
     if (!clientLoggedIn) {
       await client.login(token);
       clientLoggedIn = true;
     }
 
-    let channelId = account.discord.channel;
+    let channelId = account.channel;
     if (state.metadata?.channel) {
       channelId = state.metadata.channel;
     }
@@ -47,12 +47,12 @@ export const handler = async (state) => {
   }
 };
 
-const getAccount = async (accountId) => {
+const getAccount = async (tenantId, accountId) => {
   const account = await ddb.send(new GetItemCommand({
     TableName: process.env.TABLE_NAME,
     Key: marshall({
-      pk: accountId,
-      sk: 'account'
+      pk: tenantId,
+      sk: `account#${accountId}`
     })
   }));
   if (!account.Item) {

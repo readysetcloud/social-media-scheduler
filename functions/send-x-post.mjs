@@ -1,42 +1,34 @@
-import { getOauthHeader, getClient } from "./utils/x.mjs";
-
-const postUrl = 'https://api.twitter.com/2/tweets';
+import { getClient } from "./utils/x.mjs";
 const media = [];
 
 export const handler = async (state) => {
   try {
+    const client = await getClient(state.tenantId, state.accountId);
+
     let mediaId;
     if (state.image || state.video) {
-      mediaId = await uploadMedia(state);
+      mediaId = await uploadMedia(client, state);
     }
 
-    const oauthHeader = await getOauthHeader(state.accountId, postUrl);
-
-    const response = await fetch(postUrl, {
-      method: 'POST',
-      headers: {
-        'Authorization': oauthHeader,
-        'Content-type': 'application/json'
-      },
-      body: JSON.stringify({
-        text: state.message,
-        ...state.mediaId && { media: { media_ids: [state.mediaId] } }
-      })
+    const response = await client.v2.tweet({
+      text: state.message,
+      ...mediaId && { media: { media_ids: [mediaId] } }
     });
-    if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
-    const data = await response.json();
-    return { id: data.data.id };
+
+    if(response.errors?.length){
+      throw new Error(response.errors.join(', '));
+    }
+
+    return { id: response.data.id };
   }
   catch (err) {
     console.error(JSON.stringify(err));
   }
 };
 
-const uploadMedia = async () => {
+const uploadMedia = async (client, state) => {
   const existingMedia = media.find(m => (state.image && m.fileName == state.image) || (state.video && m.fileName == state.video));
   if (existingMedia) return existingMedia.mediaId;
-
-  const client = await getClient(state.accountId);
 
   let buffer;
   let mimeType;

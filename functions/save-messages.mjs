@@ -19,7 +19,7 @@ export const handler = async (state) => {
       ddb.send(new PutItemCommand({
         TableName: process.env.TABLE_NAME,
         Item: marshall({
-          pk: `${state.accountId}#${message.id}`,
+          pk: `${state.tenantId}#${state.accountId}#${message.id}`,
           sk: 'message',
           ...message,
           campaign: state.referenceNumber,

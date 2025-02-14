@@ -1,7 +1,9 @@
 import { getSecret } from '@aws-lambda-powertools/parameters/secrets';
+import { getParameter } from '@aws-lambda-powertools/parameters/ssm';
 import crypto from 'crypto';
 
 let secrets;
+let accounts = {};
 
 export const jsonResponse = (statusCode, body) => {
   return {
@@ -53,4 +55,14 @@ export const authenticate = (event, referenceNumber) => {
       body: `<html>You are not authorized to view this page.</html>`
     };
   }
+};
+
+export const getAccountKeys = async (tenantId, accountId) => {
+  if (!accounts[accountId]) {
+    const parameterName = `/social-media/${tenantId}/${accountId}`;
+    const keys = await getParameter(parameterName, { decrypt: true, transform: 'json' });
+    accounts[accountId] = keys;
+  }
+
+  return accounts[accountId];
 };

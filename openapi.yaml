@@ -12,6 +12,16 @@ tags:
   - name: Schedule
     description: Operations to manage scheduling posts
 
+x-amazon-apigateway-request-validators:
+  Validate All:
+    validateRequestParameters: true
+    validateRequestBody: true
+x-amazon-apigateway-gateway-responses:
+  BAD_REQUEST_BODY:
+    statusCode: 400
+    responseTemplates:
+      application/json: '{ "message": "$context.error.validationErrorString" }'
+
 x-amazon-apigateway-cors:
   allowOrigins:
     - '*'
@@ -26,25 +36,9 @@ x-amazon-apigateway-cors:
 
 paths:
   /accounts:
-    post:
-      summary: Add a new account
-      description: Create a new account for social media handling
-      tags:
-        - Account
-      responses:
-        201:
-          $ref: '#/components/responses/Created'
-        500:
-          $ref: '#/components/responses/InternalServerError'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/AccountMetadata'
     get:
       summary: List accounts
-      description: Returns a page that lists accounts
+      description: Returns a page that lists accounts for a user
       tags:
         - Account
       responses:
@@ -58,6 +52,12 @@ paths:
           $ref: '#/components/responses/NotFound'
         500:
           $ref: '#/components/responses/InternalServerError'
+      x-amazon-apigateway-request-validator: Validate All
+      x-amazon-apigateway-integration:
+        uri:
+          Fn::Sub: arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ListAccountsView.Arn}/invocations
+        httpMethod: POST
+        type: aws_proxy
 
   /accounts/{accountId}:
     parameters:
@@ -78,7 +78,12 @@ paths:
           $ref: '#/components/responses/NotFound'
         500:
           $ref: '#/components/responses/InternalServerError'
-
+      x-amazon-apigateway-request-validator: Validate All
+      x-amazon-apigateway-integration:
+        uri:
+          Fn::Sub: arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AccountConfigView.Arn}/invocations
+        httpMethod: POST
+        type: aws_proxy
     put:
       summary: Update account information
       description: Replaces all details for an existing account with the data passed in the request body
@@ -97,6 +102,12 @@ paths:
           $ref: '#/components/responses/NotFound'
         500:
           $ref: '#/components/responses/InternalServerError'
+      x-amazon-apigateway-request-validator: Validate All
+      x-amazon-apigateway-integration:
+        uri:
+          Fn::Sub: arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${UpdateAccountFunction.Arn}/invocations
+        httpMethod: POST
+        type: aws_proxy
 
   /accounts/{accountId}/messages:
     parameters:
@@ -139,6 +150,12 @@ paths:
           $ref: '#/components/responses/Conflict'
         500:
           $ref: '#/components/responses/InternalServerError'
+      x-amazon-apigateway-request-validator: Validate All
+      x-amazon-apigateway-integration:
+        uri:
+          Fn::Sub: arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SendTestPostFunction.Arn}/invocations
+        httpMethod: POST
+        type: aws_proxy
 
   /linkedin/redirect:
     get:
@@ -155,8 +172,14 @@ paths:
                 type: string
         500:
           $ref: '#/components/responses/InternalServerError'
+      x-amazon-apigateway-request-validator: Validate All
+      x-amazon-apigateway-integration:
+        uri:
+          Fn::Sub: arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${CaptureLinkedInTokenFunction.Arn}/invocations
+        httpMethod: POST
+        type: aws_proxy
 
-  /linkedin/authenticate:
+  /linkedin/login:
     post:
       summary: Authenticate integration with LinkedIn
       description: Go through 3-legged OAuth flow to authenticate with LinkedIn
@@ -187,6 +210,72 @@ paths:
           $ref: '#/components/responses/NotFound'
         500:
           $ref: '#/components/responses/InternalServerError'
+      x-amazon-apigateway-request-validator: Validate All
+      x-amazon-apigateway-integration:
+        uri:
+          Fn::Sub: arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AuthenticateLinkedInFunction.Arn}/invocations
+        httpMethod: POST
+        type: aws_proxy
+
+  /x/login:
+    get:
+      summary: Authenticate integration with X
+      description: Go through 3-legged OAuth flow to authenticate with X
+      tags:
+        - Auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                accountId:
+                  type: string
+                  minLength: 1
+              required:
+                - accountId
+      responses:
+        200:
+          description: The request succeeded and an auth url is returned
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  url:
+                    type: string
+        404:
+          $ref: '#/components/responses/NotFound'
+        500:
+          $ref: '#/components/responses/InternalServerError'
+      x-amazon-apigateway-request-validator: Validate All
+      x-amazon-apigateway-integration:
+        uri:
+          Fn::Sub: arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GetXRedirectFunction.Arn}/invocations
+        httpMethod: POST
+        type: aws_proxy
+
+  /x/redirect:
+    get:
+      summary: Get X auth redirect token
+      description: Saves access token from X
+      tags:
+        - Auth
+      responses:
+        200:
+          description: The request succeeded and the access code was captured
+          content:
+            text/html:
+              schema:
+                type: string
+        500:
+          $ref: '#/components/responses/InternalServerError'
+      x-amazon-apigateway-request-validator: Validate All
+      x-amazon-apigateway-integration:
+        uri:
+          Fn::Sub: arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${HandleXRedirectFunction.Arn}/invocations
+        httpMethod: POST
+        type: aws_proxy
 
   /confirmations/{referenceNumber}:
     parameters:
@@ -204,6 +293,12 @@ paths:
           $ref: '#/components/responses/NotFound'
         500:
           $ref: '#/components/responses/InternalServerError'
+      x-amazon-apigateway-request-validator: Validate All
+      x-amazon-apigateway-integration:
+        uri:
+          Fn::Sub: arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ResumeSchedulingFunction.Arn}/invocations
+        httpMethod: POST
+        type: aws_proxy
 
   /confirmations/{referenceNumber}/messages:
     parameters:
@@ -225,6 +320,12 @@ paths:
           $ref: '#/components/responses/NotFound'
         500:
           $ref: '#/components/responses/InternalServerError'
+      x-amazon-apigateway-request-validator: Validate All
+      x-amazon-apigateway-integration:
+        uri:
+          Fn::Sub: arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ReviewMessagesFunction.Arn}/invocations
+        httpMethod: POST
+        type: aws_proxy
 
   /confirmations/{referenceNumber}/messages/{messageId}:
     parameters:
@@ -260,6 +361,12 @@ paths:
           $ref: '#/components/responses/NotFound'
         500:
           $ref: '#/components/responses/InternalServerError'
+      x-amazon-apigateway-request-validator: Validate All
+      x-amazon-apigateway-integration:
+        uri:
+          Fn::Sub: arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${UpdateDeleteMessageFunction.Arn}/invocations
+        httpMethod: POST
+        type: aws_proxy
     delete:
       summary: Delete a message
       description: Deletes a proposed message to be sent
@@ -270,6 +377,12 @@ paths:
           $ref: '#/components/responses/NoContentUpdate'
         500:
           $ref: '#/components/responses/InternalServerError'
+      x-amazon-apigateway-request-validator: Validate All
+      x-amazon-apigateway-integration:
+        uri:
+          Fn::Sub: arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${UpdateDeleteMessageFunction.Arn}/invocations
+        httpMethod: POST
+        type: aws_proxy
 
 components:
   parameters:

@@ -37,6 +37,12 @@ Parameters:
   CacheName:
     Type: String
     Default: readysetcloud
+  GoogleClientId:
+    Type: String
+    Default: ''
+  GoogleClientSecret:
+    Type: String
+    Default: ''
 
 Metadata:
   esbuild-properties: &esbuild-properties
@@ -70,10 +76,20 @@ Globals:
         AWS_NODEJS_CONNECTION_REUSE_ENABLED: 1
 
 Resources:
-  AccountApi:
-    Type: AWS::Serverless::HttpApi
+  Api:
+    Type: AWS::Serverless::Api
     Properties:
       StageName: v1
+      Auth:
+        Authorizers:
+          CognitoAuth:
+            AuthorizationScopes:
+              - email
+              - openid
+              - profile
+            UserPoolArn: !GetAtt CognitoUserPool.Arn
+        DefaultAuthorizer: CognitoAuth
+        AddDefaultAuthorizerToCorsPreflight: false
       DefinitionBody:
         'Fn::Transform':
           Name: AWS::Include
@@ -138,6 +154,175 @@ Resources:
             organizationClientSecret: !Ref LinkedInClientSecretOrganization
             discordToken: !Ref DiscordToken
 
+  CognitoUserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: SocialMediaUserPool
+      UsernameAttributes:
+        - email
+      AutoVerifiedAttributes:
+        - email
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireUppercase: true
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: false
+
+  FreeMembershipGroup:
+    Type: AWS::Cognito::UserPoolGroup
+    Properties:
+      Description: Free membership. Default group for new users
+      GroupName: SocialMediaFree
+      UserPoolId: !Ref CognitoUserPool
+      Precedence: 10
+
+  ProMembershipGroup:
+    Type: AWS::Cognito::UserPoolGroup
+    Properties:
+      Description: Pro membership. Includes AI-powered features
+      GroupName: SocialMediaPro
+      UserPoolId: !Ref CognitoUserPool
+      Precedence: 5
+
+  # AuthCertificate:
+  #   Type: AWS::CertificateManager::Certificate
+  #   Properties:
+  #     DomainName: !Sub auth.${RootDomainName}
+  #     ValidationMethod: DNS
+  #     DomainValidationOptions:
+  #       - DomainName: !Sub auth.${RootDomainName}
+  #         HostedZoneId: !Ref HostedZoneId
+
+  # CognitoUserPoolDomain:
+  #   Type: AWS::Cognito::UserPoolDomain
+  #   Properties:
+  #     UserPoolId: !Ref CognitoUserPool
+  #     Domain: !Sub auth.${RootDomainName}
+  #     CustomDomainConfig:
+  #       CertificateArn: !Ref AuthCertificate
+
+  # CustomDomainDnsRecord:
+  #   Type: AWS::Route53::RecordSet
+  #   Properties:
+  #     HostedZoneId: !Ref HostedZoneId
+  #     Name: !Sub auth.${RootDomainName}
+  #     ResourceRecords:
+  #       - !GetAtt CognitoUserPoolDomain.CloudFrontDistribution
+  #     TTL: 300
+  #     Type: CNAME
+
+  CognitoUserPoolIdentityProvider:
+    Type: AWS::Cognito::UserPoolIdentityProvider
+    Properties:
+      UserPoolId: !Ref CognitoUserPool
+      ProviderName: Google
+      ProviderType: Google
+      ProviderDetails:
+        client_id: !Ref GoogleClientId
+        client_secret: !Ref GoogleClientSecret
+        authorize_scopes: "email openid profile"
+      AttributeMapping:
+        email: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress'
+        given_name: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/givenname'
+        family_name: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/surname'
+
+  CognitoUserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    DependsOn:
+      - CognitoUserPoolIdentityProvider
+    Properties:
+      ClientName: SocialMediaUserPoolClient
+      UserPoolId: !Ref CognitoUserPool
+      AllowedOAuthFlows:
+        - code
+      AllowedOAuthScopes:
+        - email
+        - openid
+        - profile
+      CallbackURLs:
+        - http://localhost:3000
+        - http://localhost:3000/oauth2/idpresponse
+      LogoutURLs:
+        - http://localhost:3000/logout
+      AllowedOAuthFlowsUserPoolClient: true
+      SupportedIdentityProviders:
+        - Google
+      ExplicitAuthFlows:
+        - ALLOW_USER_SRP_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+
+  CognitoIdentityPool:
+    Type: AWS::Cognito::IdentityPool
+    Properties:
+      IdentityPoolName: SocialMediaIdentityPool
+      AllowUnauthenticatedIdentities: false
+      CognitoIdentityProviders:
+        - ClientId: !Ref CognitoUserPoolClient
+          ProviderName: !Sub cognito-idp.${AWS::Region}.amazonaws.com/${CognitoUserPool}
+
+  CognitoAuthenticatedRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: 'Allow'
+          Principal:
+            Federated: 'cognito-identity.amazonaws.com'
+          Action: 'sts:AssumeRoleWithWebIdentity'
+          Condition:
+            StringEquals:
+              'cognito-identity.amazonaws.com:aud': !Ref CognitoIdentityPool
+            'ForAnyValue:StringLike':
+              'cognito-identity.amazonaws.com:amr': authenticated
+      Policies:
+      - PolicyName: CognitoAuthorizedPolicy
+        PolicyDocument:
+          Version: 2012-10-17
+          Statement:
+          - Effect: Allow
+            Action:
+              - s3:PutObject
+              - s3:GetObject
+            Resource:
+              - !Sub arn:aws:s3:::${PostScheduleTable}/*
+
+  CognitoIdentityPoolRoles:
+    Type: AWS::Cognito::IdentityPoolRoleAttachment
+    Properties:
+      IdentityPoolId: !Ref CognitoIdentityPool
+      Roles:
+        authenticated: !GetAtt CognitoAuthenticatedRole.Arn
+
+  RegisterPostConfirmationFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        <<: *esbuild-properties
+        EntryPoints:
+          - register-post-confirmation.mjs
+    Properties:
+      Handler: register-post-confirmation.handler
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action: dynamodb:PutItem
+              Resource: !GetAtt PostScheduleTable.Arn
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref PostScheduleTable
+      Events:
+        Cognito:
+          Type: Cognito
+          Properties:
+            Trigger: PostConfirmation
+            UserPool: !Ref CognitoUserPool
+
   AuthenticateLinkedInFunction:
     Type: AWS::Serverless::Function
     Metadata:
@@ -164,10 +349,10 @@ Resources:
           SECRET_ID: !Ref LinkedInSecrets
       Events:
         AuthEvent:
-          Type: HttpApi
+          Type: Api
           Properties:
-            ApiId: !Ref AccountApi
-            Path: /linkedin/authenticate
+            RestApiId: !Ref Api
+            Path: /linkedin/login
             Method: POST
 
   SendXPostFunction:
@@ -235,9 +420,9 @@ Resources:
           TABLE_NAME: !Ref PostScheduleTable
       Events:
         GetDetailEvent:
-          Type: HttpApi
+          Type: Api
           Properties:
-            ApiId: !Ref AccountApi
+            RestApiId: !Ref Api
             Path: /accounts/{accountId}
             Method: GET
 
@@ -263,39 +448,11 @@ Resources:
           TABLE_NAME: !Ref PostScheduleTable
       Events:
         GetAccountsEvent:
-          Type: HttpApi
+          Type: Api
           Properties:
-            ApiId: !Ref AccountApi
+            RestApiId: !Ref Api
             Path: /accounts
             Method: GET
-
-  AddAccountFunction:
-    Type: AWS::Serverless::Function
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        <<: *esbuild-properties
-        EntryPoints:
-          - api/add-account.mjs
-    Properties:
-      Handler: api/add-account.handler
-      Policies:
-        - AWSLambdaBasicExecutionRole
-        - Version: 2012-10-17
-          Statement:
-            - Effect: Allow
-              Action: dynamodb:PutItem
-              Resource: !GetAtt PostScheduleTable.Arn
-      Environment:
-        Variables:
-          TABLE_NAME: !Ref PostScheduleTable
-      Events:
-        AddEvent:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref AccountApi
-            Path: /accounts
-            Method: POST
 
   UpdateAccountFunction:
     Type: AWS::Serverless::Function
@@ -329,9 +486,9 @@ Resources:
           TABLE_NAME: !Ref PostScheduleTable
       Events:
         UpdateEvent:
-          Type: HttpApi
+          Type: Api
           Properties:
-            ApiId: !Ref AccountApi
+            RestApiId: !Ref Api
             Path: /accounts/{accountId}
             Method: PUT
 
@@ -398,9 +555,9 @@ Resources:
           SEND_DISCORD_POST_ARN: !GetAtt SendDiscordMessageFunction.Arn
       Events:
         TestEvent:
-          Type: HttpApi
+          Type: Api
           Properties:
-            ApiId: !Ref AccountApi
+            RestApiId: !Ref Api
             Path: /accounts/{accountId}/messages
             Method: POST
 
@@ -428,9 +585,9 @@ Resources:
           MOMENTO_API_KEY: !Ref MomentoApiKey
       Events:
         Api:
-          Type: HttpApi
+          Type: Api
           Properties:
-            ApiId: !Ref AccountApi
+            RestApiId: !Ref Api
             Path: /x/login
             Method: GET
 
@@ -464,9 +621,9 @@ Resources:
           MOMENTO_API_KEY: !Ref MomentoApiKey
       Events:
         Api:
-          Type: HttpApi
+          Type: Api
           Properties:
-            ApiId: !Ref AccountApi
+            RestApiId: !Ref Api
             Path: /x/redirect
             Method: GET
 
@@ -509,9 +666,9 @@ Resources:
           EXPIRE_LI_CREDENTIALS_ROLE: !GetAtt ExpireLinkedInCredentialsSchedulerRole.Arn
       Events:
         AuthEvent:
-          Type: HttpApi
+          Type: Api
           Properties:
-            ApiId: !Ref AccountApi
+            RestApiId: !Ref Api
             Path: /linkedin/redirect
             Method: GET
 
@@ -567,9 +724,9 @@ Resources:
           HMAC_SECRET: !Ref HmacSecret
       Events:
         ApiEvent:
-          Type: HttpApi
+          Type: Api
           Properties:
-            ApiId: !Ref AccountApi
+            RestApiId: !Ref Api
             Path: /confirmations/{referenceNumber}
             Method: GET
 
@@ -600,9 +757,9 @@ Resources:
           BASE_URL: !Ref BaseUrl
       Events:
         ApiEvent:
-          Type: HttpApi
+          Type: Api
           Properties:
-            ApiId: !Ref AccountApi
+            RestApiId: !Ref Api
             Path: /confirmations/{referenceNumber}/messages
             Method: GET
 
@@ -634,15 +791,15 @@ Resources:
           HMAC_SECRET: !Ref HmacSecret
       Events:
         Update:
-          Type: HttpApi
+          Type: Api
           Properties:
-            ApiId: !Ref AccountApi
+            RestApiId: !Ref Api
             Path: /confirmations/{referenceNumber}/messages/{messageId}
             Method: PUT
         Delete:
-          Type: HttpApi
+          Type: Api
           Properties:
-            ApiId: !Ref AccountApi
+            RestApiId: !Ref Api
             Path: /confirmations/{referenceNumber}/messages/{messageId}
             Method: DELETE
 
@@ -919,4 +1076,4 @@ Resources:
 Outputs:
   ApiBaseUrl:
     Description: API Gateway endpoint for the account API
-    Value: !Sub 'https://${AccountApi}.execute-api.${AWS::Region}.amazonaws.com/v1'
+    Value: !Sub 'https://${Api}.execute-api.${AWS::Region}.amazonaws.com/v1'

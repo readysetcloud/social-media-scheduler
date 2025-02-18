@@ -1,9 +1,9 @@
 import { DynamoDBClient, PutItemCommand } from '@aws-sdk/client-dynamodb';
-import { CognitoIdentityProviderClient, AdminAddUserToGroupCommand } from '@aws-sdk/client-cognito-identity-provider';
 import { marshall } from '@aws-sdk/util-dynamodb';
+import { EventBridgeClient, PutEventsCommand } from "@aws-sdk/client-eventbridge";
 
 const ddb = new DynamoDBClient();
-const cognito = new CognitoIdentityProviderClient();
+const events = new EventBridgeClient();
 
 export const handler = async (event) => {
   try {
@@ -20,10 +20,17 @@ export const handler = async (event) => {
       })
     }));
 
-    await cognito.send(new AdminAddUserToGroupCommand({
-      GroupName: process.env.DEFAULT_GROUP_NAME,
-      UserPoolId: event.userPoolId,
-      Username: event.userName
+    await events.send(new PutEventsCommand({
+      Entries: [
+        {
+          Detail: JSON.stringify({
+            userName: event.userName,
+            groupName: process.env.DEFAULT_GROUP_NAME
+          }),
+          DetailType: 'Add User to Tier',
+          Source: 'user-post-confirmation'
+        }
+      ]
     }));
   } catch (err) {
     console.error('Error processing post-confirmation trigger:', err);

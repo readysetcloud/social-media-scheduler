@@ -1,6 +1,7 @@
-@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700&display=swap');
+
 :root {
-  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  font-family: 'Nunito', sans-serif;
   line-height: 1.5;
   font-weight: 400;
 
@@ -12,6 +13,16 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+
+  --color-background: #F9F7F1;
+  --color-title-bg: #F9F7F1;
+  --color-nav-bg: #DADADA;
+  --color-nav-text: #1F1F1F;
+  --color-accent: #F2994A;
+  --color-accent-dark: #e07b38;
+  --color-hover: #4A90E2;
+  --color-content-bg: #333333;
+  --color-content-text: #F9F7F1;
 }
 
 a {
@@ -19,6 +30,7 @@ a {
   color: #646cff;
   text-decoration: inherit;
 }
+
 a:hover {
   color: #535bf2;
 }
@@ -36,6 +48,10 @@ h1 {
   line-height: 1.1;
 }
 
+h2 {
+  margin-top: 0;
+}
+
 button {
   border-radius: 8px;
   border: 1px solid transparent;
@@ -47,9 +63,11 @@ button {
   cursor: pointer;
   transition: border-color 0.25s;
 }
+
 button:hover {
   border-color: #646cff;
 }
+
 button:focus,
 button:focus-visible {
   outline: 4px auto -webkit-focus-ring-color;
@@ -60,9 +78,11 @@ button:focus-visible {
     color: #213547;
     background-color: #ffffff;
   }
+
   a:hover {
     color: #747bff;
   }
+
   button {
     background-color: #f9f9f9;
   }

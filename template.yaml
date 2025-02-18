@@ -213,6 +213,12 @@ Resources:
   #     TTL: 300
   #     Type: CNAME
 
+  CognitoUserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      UserPoolId: !Ref CognitoUserPool
+      Domain: social-butterfly-auth
+
   CognitoUserPoolIdentityProvider:
     Type: AWS::Cognito::UserPoolIdentityProvider
     Properties:
@@ -242,10 +248,10 @@ Resources:
         - openid
         - profile
       CallbackURLs:
-        - http://localhost:3000
-        - http://localhost:3000/oauth2/idpresponse
+        - http://localhost:5173
+        - http://localhost:5173/oauth2/idpresponse
       LogoutURLs:
-        - http://localhost:3000/logout
+        - http://localhost:5173/logout
       AllowedOAuthFlowsUserPoolClient: true
       SupportedIdentityProviders:
         - Google
@@ -313,15 +319,49 @@ Resources:
             - Effect: Allow
               Action: dynamodb:PutItem
               Resource: !GetAtt PostScheduleTable.Arn
+            - Effect: Allow
+              Action: events:PutEvents
+              Resource: !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:event-bus/default
       Environment:
         Variables:
           TABLE_NAME: !Ref PostScheduleTable
+          DEFAULT_GROUP_NAME: SocialMediaFree
       Events:
         Cognito:
           Type: Cognito
           Properties:
             Trigger: PostConfirmation
             UserPool: !Ref CognitoUserPool
+
+  AddUserToTierFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        <<: *esbuild-properties
+        EntryPoints:
+          - add-user-to-tier.mjs
+    Properties:
+      Handler: add-user-to-tier.handler
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action: cognito-idp:AdminAddUserToGroup
+              Resource: !GetAtt CognitoUserPool.Arn
+      Environment:
+        Variables:
+          USER_POOL_ID: !Ref CognitoUserPool
+      Events:
+        EventBridge:
+          Type: EventBridgeRule
+          Properties:
+            Pattern:
+              detail-type:
+                - Add User to Tier
+              source:
+                - user-post-confirmation
 
   AuthenticateLinkedInFunction:
     Type: AWS::Serverless::Function
@@ -426,23 +466,23 @@ Resources:
             Path: /accounts/{accountId}
             Method: GET
 
-  ListAccountsView:
+  ListAccountsFunction:
     Type: AWS::Serverless::Function
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
         <<: *esbuild-properties
         EntryPoints:
-          - views/list-accounts.mjs
+          - api/list-accounts.mjs
     Properties:
-      Handler: views/list-accounts.handler
+      Handler: api/list-accounts.handler
       Policies:
         - AWSLambdaBasicExecutionRole
         - Version: 2012-10-17
           Statement:
             - Effect: Allow
               Action: dynamodb:Query
-              Resource: !Sub ${PostScheduleTable.Arn}/index/schedules
+              Resource: !GetAtt PostScheduleTable.Arn
       Environment:
         Variables:
           TABLE_NAME: !Ref PostScheduleTable
@@ -1077,3 +1117,12 @@ Outputs:
   ApiBaseUrl:
     Description: API Gateway endpoint for the account API
     Value: !Sub 'https://${Api}.execute-api.${AWS::Region}.amazonaws.com/v1'
+  UserPoolClientId:
+    Description: Id of user pool client
+    Value: !Ref CognitoUserPoolClient
+  IdentityPoolId:
+    Description: Id of the identity pool
+    Value: !Ref CognitoIdentityPool
+  UserPoolId:
+    Description: Id of the user pool
+    Value: !Ref CognitoUserPool

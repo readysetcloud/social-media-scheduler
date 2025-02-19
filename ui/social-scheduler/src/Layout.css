@@ -153,8 +153,8 @@
 }
 
 .content-area {
-  margin-top: 40px;
-  padding: 20px;
+  margin-top: 60px;
+  padding: 0 20px;
   transition: margin-left 0.3s ease;
   min-height: calc(100vh - 60px);
   background-color: transparent;

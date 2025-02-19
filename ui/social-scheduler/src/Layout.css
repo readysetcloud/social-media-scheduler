@@ -54,6 +54,7 @@
   left: 0;
   bottom: 0;
   background-color: var(--color-nav-bg);
+  box-shadow: 3px 0 5px rgba(0,0,0,.2);
   overflow: hidden;
   transition: width 0.3s ease;
 }
@@ -152,7 +153,7 @@
 }
 
 .content-area {
-  margin-top: 60px;
+  margin-top: 40px;
   padding: 20px;
   transition: margin-left 0.3s ease;
   min-height: calc(100vh - 60px);
@@ -161,11 +162,11 @@
 }
 
 .content-area.collapsed {
-  margin-left: 60px;
+  margin-left: 40px;
 }
 
 .content-area.expanded {
-  margin-left: 250px;
+  margin-left: 230px;
 }
 
 .content-area h2 {

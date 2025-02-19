@@ -9,7 +9,9 @@ export const jsonResponse = (statusCode, body) => {
   return {
     statusCode,
     headers: {
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': process.env.ORIGIN,
+      'Access-Control-Allow-Credentials': true
     },
     ...body && { body: JSON.stringify(body) }
   };

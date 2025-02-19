@@ -8,6 +8,7 @@ const ddb = new DynamoDBClient();
 
 export const handler = async (event) => {
   try {
+    console.log(event.requestContext);
     const tenantId = event.requestContext.authorizer.claims.sub;
     if (!tenantId) {
       return jsonResponse(403, { message: 'You are not authorized to get accounts.' });
@@ -31,7 +32,8 @@ export const handler = async (event) => {
       accounts = data.Items.map(account => {
         return {
           id: account.id.S,
-          name: account.name.S
+          name: account.name.S,
+          platform: account.platform.S
         };
       });
     }

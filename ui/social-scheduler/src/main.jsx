@@ -9,6 +9,14 @@ import { Authenticator } from '@aws-amplify/ui-react';
 
 Amplify.configure(config);
 
+const modalRootId = 'modal-root';
+let modalRoot = document.getElementById(modalRootId);
+if (!modalRoot) {
+  modalRoot = document.createElement('div');
+  modalRoot.id = modalRootId;
+  document.body.appendChild(modalRoot);
+}
+
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <Authenticator socialProviders={["google"]} variation="modal">

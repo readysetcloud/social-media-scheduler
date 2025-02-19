@@ -15,5 +15,13 @@ export const config = {
         email: true
       }
     }
+  },
+  API: {
+    REST: {
+      user: {
+        endpoint: 'https://pi1g8k0jnb.execute-api.us-east-1.amazonaws.com/v1',
+        region: 'us-east-1'
+      }
+    }
   }
 };

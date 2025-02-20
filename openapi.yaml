@@ -157,28 +157,6 @@ paths:
         httpMethod: POST
         type: aws_proxy
 
-  /linkedin/redirect:
-    get:
-      summary: Get capture linkedin auth redirect token
-      description: Saves access token from linkedin
-      tags:
-        - Auth
-      responses:
-        200:
-          description: The request succeeded and the access code was captured
-          content:
-            text/html:
-              schema:
-                type: string
-        500:
-          $ref: '#/components/responses/InternalServerError'
-      x-amazon-apigateway-request-validator: Validate All
-      x-amazon-apigateway-integration:
-        uri:
-          Fn::Sub: arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${CaptureLinkedInTokenFunction.Arn}/invocations
-        httpMethod: POST
-        type: aws_proxy
-
   /linkedin/login:
     post:
       summary: Authenticate integration with LinkedIn
@@ -221,19 +199,15 @@ paths:
     get:
       summary: Authenticate integration with X
       description: Go through 3-legged OAuth flow to authenticate with X
+      parameters:
+        - name: name
+          in: query
+          description: Name of the account
+          required: false
+          schema:
+            type: string
       tags:
         - Auth
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                accountId:
-                  type: string
-                  minLength: 1
-              required:
-                - accountId
       responses:
         200:
           description: The request succeeded and an auth url is returned
@@ -242,7 +216,7 @@ paths:
               schema:
                 type: object
                 properties:
-                  url:
+                  loginUrl:
                     type: string
         404:
           $ref: '#/components/responses/NotFound'
@@ -252,28 +226,6 @@ paths:
       x-amazon-apigateway-integration:
         uri:
           Fn::Sub: arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GetXRedirectFunction.Arn}/invocations
-        httpMethod: POST
-        type: aws_proxy
-
-  /x/redirect:
-    get:
-      summary: Get X auth redirect token
-      description: Saves access token from X
-      tags:
-        - Auth
-      responses:
-        200:
-          description: The request succeeded and the access code was captured
-          content:
-            text/html:
-              schema:
-                type: string
-        500:
-          $ref: '#/components/responses/InternalServerError'
-      x-amazon-apigateway-request-validator: Validate All
-      x-amazon-apigateway-integration:
-        uri:
-          Fn::Sub: arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${HandleXRedirectFunction.Arn}/invocations
         httpMethod: POST
         type: aws_proxy
 

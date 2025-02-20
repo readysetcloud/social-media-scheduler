@@ -12,11 +12,31 @@
 }
 
 .modal-content {
+  position: relative;
   background: #fff;
   padding: 20px;
   border-radius: 4px;
   max-width: 500px;
   width: 90%;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-  color: black;
+}
+
+.modal-actions {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+}
+
+.modal-action-button {
+  padding: 8px 12px;
+  background-color: #007bff;
+  border: none;
+  border-radius: 4px;
+  color: white;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.modal-action-button:hover {
+  background-color: #0056b3;
 }

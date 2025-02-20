@@ -1,0 +1,87 @@
+openapi: 3.0.0
+info:
+  title: Public API used for 3-legged auth flows
+  description: Redirects that must be open for auth flows
+  version: 1.0.0
+tags:
+  - name: X
+    description: Used for X auth
+  - name: LinkedIn
+    description: Used for LinkedIn auth
+
+x-amazon-apigateway-request-validators:
+  Validate All:
+    validateRequestParameters: true
+    validateRequestBody: true
+x-amazon-apigateway-gateway-responses:
+  BAD_REQUEST_BODY:
+    statusCode: 400
+    responseTemplates:
+      application/json: '{ "message": "$context.error.validationErrorString" }'
+
+x-amazon-apigateway-cors:
+  allowOrigins:
+    - '*'
+  allowMethods:
+    - GET
+  maxAge: 3600
+
+paths:
+  /linkedin/redirect:
+    get:
+      summary: Get capture linkedin auth redirect token
+      description: Saves access token from linkedin
+      tags:
+        - Auth
+      responses:
+        200:
+          description: The request succeeded and the access code was captured
+          content:
+            text/html:
+              schema:
+                type: string
+        500:
+          $ref: '#/components/responses/InternalServerError'
+      x-amazon-apigateway-request-validator: Validate All
+      x-amazon-apigateway-integration:
+        uri:
+          Fn::Sub: arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${CaptureLinkedInTokenFunction.Arn}/invocations
+        httpMethod: POST
+        type: aws_proxy
+
+  /x/redirect:
+    get:
+      summary: Get X auth redirect token
+      description: Saves access token from X
+      tags:
+        - Auth
+      responses:
+        200:
+          description: The request succeeded and the access code was captured
+          content:
+            text/html:
+              schema:
+                type: string
+        500:
+          $ref: '#/components/responses/InternalServerError'
+      x-amazon-apigateway-request-validator: Validate All
+      x-amazon-apigateway-integration:
+        uri:
+          Fn::Sub: arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${HandleXRedirectFunction.Arn}/invocations
+        httpMethod: POST
+        type: aws_proxy
+
+components:
+  responses:
+    InternalServerError: #500
+      description: The server encountered an unexpected condition which prevented it from fulfilling the request.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+                example: An error occurred saving the item.
+            required:
+              - message

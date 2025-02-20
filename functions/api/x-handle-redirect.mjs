@@ -4,8 +4,8 @@ import { setParameter } from '@aws-lambda-powertools/parameters/ssm';
 import { CacheClient, CacheDictionaryFetchResponse } from "@gomomento/sdk";
 import { DynamoDBClient, PutItemCommand } from "@aws-sdk/client-dynamodb";
 import { marshall } from "@aws-sdk/util-dynamodb";
-import { jsonResponse } from "./utils/helpers.mjs";
-import { getXAppCredentials } from "./utils/x.mjs";
+import { jsonResponse } from "../utils/helpers.mjs";
+import { getXAppCredentials } from "../utils/x.mjs";
 import { TwitterApi } from "twitter-api-v2";
 
 const cacheClient = new CacheClient({ defaultTtlSeconds: 300 });
@@ -32,24 +32,29 @@ export const handler = async (event) => {
 
     const xClient = new TwitterApi(creds);
     const user = await xClient.login(oauth_verifier);
-    await saveAccount(detail.tenantId, user.userId, user.screenName);
+    await saveAccount(detail, user);
     await storeCredentials(detail.tenantId, user.userId, user.accessToken, user.accessSecret);
 
-    return jsonResponse(200, { message: 'nice' });
+    const response = jsonResponse(302);
+    response.headers.Location = process.env.REDIRECT;
+
+    return response;
   } catch (err) {
     console.error(err);
     return jsonResponse(500, { message: 'Something went wrong' });
   }
 };
 
-const saveAccount = async (tenantId, accountId, accountName) => {
+const saveAccount = async (detail, user) => {
+  console.log(detail, user);
   await ddb.send(new PutItemCommand({
     TableName: process.env.TABLE_NAME,
     Item: marshall({
-      pk: tenantId,
-      sk: `account#${accountId}`,
-      id: accountId,
-      name: accountName,
+      pk: detail.tenantId,
+      sk: `account#${user.userId}`,
+      id: user.userId,
+      name: detail.name ?? user.screenName,
+      screenName: user.screenName,
       platform: 'x',
       created: new Date().toISOString()
     })

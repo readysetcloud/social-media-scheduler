@@ -2,13 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { get } from 'aws-amplify/api';
 import { fetchAuthSession } from 'aws-amplify/auth';
 import Modal from '../components/Modal';
+import AddSocial from '../components/AddSocial';
 import './Accounts.css';
 
 const Accounts = ({ user }) => {
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [isModalOpen, setIsModalOpen] = useState(false); // Initially closed
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [token, setToken] = useState(null);
 
   const openModal = () => setIsModalOpen(true);
   const closeModal = () => setIsModalOpen(false);
@@ -17,16 +19,24 @@ const Accounts = ({ user }) => {
     const fetchAccounts = async () => {
       try {
         const session = await fetchAuthSession();
-        const token = session.tokens?.accessToken;
-        if (!token) return;
+        const accessToken = session.tokens?.accessToken;
+        if (!accessToken) return;
 
-        const response = await get({
+        setToken(accessToken);
+        const request = await get({
           apiName: 'user',
           path: '/accounts',
-          options: { withCredentials: true, headers: { Authorization: token } }
+          options: { withCredentials: true, headers: { Authorization: accessToken } }
         });
 
-        setAccounts(response.accounts);
+        const response = await request.response;
+        if(response.statusCode == 200){
+          const body = await response.body.json();
+          setAccounts(body.accounts);
+        }
+        else {
+          console.warn('Failed to load accounts');
+        }
       } catch (err) {
         console.error('Error fetching accounts:', err);
         setError(err);
@@ -37,6 +47,26 @@ const Accounts = ({ user }) => {
 
     fetchAccounts();
   }, []);
+
+  const handleAddSocialSubmit = async (formData) => {
+    console.log('New social account data:', formData);
+    if (formData.platform.toLowerCase() == 'x') {
+      const request = await get({
+        apiName: 'user',
+        path: `/x/login${formData.name ? '?name=' + formData.name : ''}`,
+        options: { withCredentials: true, headers: { Authorization: token }, }
+      });
+
+      const response = await request.response;
+      if (response.statusCode == 200) {
+        const body = await response.body.json();
+        const { loginUrl } = body;
+        window.location = loginUrl;
+      }
+    }
+
+    closeModal();
+  };
 
   if (loading) return <p className="loading-message">Loading accounts...</p>;
   if (error) return <p className="error-message">Error loading accounts: {error.message}</p>;
@@ -63,9 +93,7 @@ const Accounts = ({ user }) => {
       </div>
 
       <Modal isOpen={isModalOpen} onClose={closeModal}>
-        <h2>New Account</h2>
-        <p>Enter the details for a new account.</p>
-        <button onClick={closeModal}>Close</button>
+        <AddSocial onSubmit={handleAddSocialSubmit} onCancel={closeModal} />
       </Modal>
     </div>
   );

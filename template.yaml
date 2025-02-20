@@ -106,6 +106,16 @@ Resources:
           Parameters:
             Location: ./openapi.yaml
 
+  PublicApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: public
+      DefinitionBody:
+        'Fn::Transform':
+          Name: AWS::Include
+          Parameters:
+            Location: ./public-openapi.yaml
+
   PostScheduleTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -615,9 +625,9 @@ Resources:
       BuildProperties:
         <<: *esbuild-properties
         EntryPoints:
-          - get-x-redirect.mjs
+          - api/x-get-redirect.mjs
     Properties:
-      Handler: get-x-redirect.handler
+      Handler: api/x-get-redirect.handler
       Policies:
         - AWSLambdaBasicExecutionRole
         - Version: 2012-10-17
@@ -628,7 +638,7 @@ Resources:
       Environment:
         Variables:
           CACHE_NAME: !Ref CacheName
-          X_CALLBACK_URL: !Sub ${BaseUrl}/x/redirect
+          X_CALLBACK_URL: !Sub 'https://${PublicApi}.execute-api.${AWS::Region}.amazonaws.com/public/x/redirect'
           MOMENTO_API_KEY: !Ref MomentoApiKey
       Events:
         Api:
@@ -645,9 +655,9 @@ Resources:
       BuildProperties:
         <<: *esbuild-properties
         EntryPoints:
-          - handle-x-redirect.mjs
+          - api/x-handle-redirect.mjs
     Properties:
-      Handler: handle-x-redirect.handler
+      Handler: api/x-handle-redirect.handler
       Policies:
         - AWSLambdaBasicExecutionRole
         - Version: 2012-10-17
@@ -666,11 +676,12 @@ Resources:
           TABLE_NAME: !Ref PostScheduleTable
           CACHE_NAME: !Ref CacheName
           MOMENTO_API_KEY: !Ref MomentoApiKey
+          REDIRECT: !Sub ${Origin}/accounts
       Events:
         Api:
           Type: Api
           Properties:
-            RestApiId: !Ref Api
+            RestApiId: !Ref PublicApi
             Path: /x/redirect
             Method: GET
 
@@ -715,7 +726,7 @@ Resources:
         AuthEvent:
           Type: Api
           Properties:
-            RestApiId: !Ref Api
+            RestApiId: !Ref PublicApi
             Path: /linkedin/redirect
             Method: GET
 
@@ -1124,6 +1135,9 @@ Outputs:
   ApiBaseUrl:
     Description: API Gateway endpoint for the account API
     Value: !Sub 'https://${Api}.execute-api.${AWS::Region}.amazonaws.com/v1'
+  PublicApiUrl:
+    Description: API Gateway endpoint for the public API for 3-legged auth
+    Value: !Sub 'https://${PublicApi}.execute-api.${AWS::Region}.amazonaws.com/public'
   UserPoolClientId:
     Description: Id of user pool client
     Value: !Ref CognitoUserPoolClient

@@ -4,19 +4,11 @@ Description: >
   Serverless Social Post Scheduler - Schedule and Track Social Media Posts with Events
 
 Parameters:
-  LinkedInClientIdPersonal:
+  LinkedInClientId:
     Type: String
     Default: ''
     NoEcho: true
-  LinkedInClientSecretPersonal:
-    Type: String
-    Default: ''
-    NoEcho: true
-  LinkedInClientIdOrganization:
-    Type: String
-    Default: ''
-    NoEcho: true
-  LinkedInClientSecretOrganization:
+  LinkedInClientSecret:
     Type: String
     Default: ''
     NoEcho: true
@@ -162,17 +154,9 @@ Resources:
         Fn::Sub:
           - |-
             {
-              "personalClientId": "${personalClientId}",
-              "personalClientSecret": "${personalClientSecret}",
-              "organizationClientId": "${organizationClientId}",
-              "organizationClientSecret": "${organizationClientSecret}",
               "discord": "${discordToken}"
             }
-          - personalClientId: !Ref LinkedInClientIdPersonal
-            personalClientSecret: !Ref LinkedInClientSecretPersonal
-            organizationClientId: !Ref LinkedInClientIdOrganization
-            organizationClientSecret: !Ref LinkedInClientSecretOrganization
-            discordToken: !Ref DiscordToken
+          - discordToken: !Ref DiscordToken
 
   CognitoUserPool:
     Type: AWS::Cognito::UserPool
@@ -380,37 +364,68 @@ Resources:
               source:
                 - user-post-confirmation
 
-  AuthenticateLinkedInFunction:
+  GetLinkedInRedirectFunction:
     Type: AWS::Serverless::Function
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
         <<: *esbuild-properties
         EntryPoints:
-          - authenticate-linkedin.mjs
+          - api/linkedin-get-redirect.mjs
     Properties:
-      Handler: authenticate-linkedin.handler
+      Handler: api/linkedin-get-redirect.handler
       Policies:
         - AWSLambdaBasicExecutionRole
-        - Version: 2012-10-17
-          Statement:
-            - Effect: Allow
-              Action: secretsmanager:GetSecretValue
-              Resource: !Ref LinkedInSecrets
-            - Effect: Allow
-              Action: dynamodb:GetItem
-              Resource: !GetAtt PostScheduleTable.Arn
       Environment:
         Variables:
-          TABLE_NAME: !Ref PostScheduleTable
-          SECRET_ID: !Ref LinkedInSecrets
+          CALLBACK_URL: !Sub 'https://${PublicApi}.execute-api.${AWS::Region}.amazonaws.com/public/linkedin/redirect'
+          CLIENT_ID: !Ref LinkedInClientId
+          CLIENT_SECRET: !Ref LinkedInClientSecret
+          MOMENTO_API_KEY: !Ref MomentoApiKey
+          CACHE_NAME: !Ref CacheName
       Events:
         AuthEvent:
           Type: Api
           Properties:
             RestApiId: !Ref Api
             Path: /linkedin/login
-            Method: POST
+            Method: GET
+
+  HandleLinkedInRedirectFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        <<: *esbuild-properties
+        EntryPoints:
+          - api/linkedin-handle-redirect.mjs
+    Properties:
+      Handler: api/linkedin-handle-redirect.handler
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action: ssm:PutParameter
+              Resource: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/social-media/*
+            - Effect: Allow
+              Action: dynamodb:PutItem
+              Resource: !GetAtt PostScheduleTable.Arn
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref PostScheduleTable
+          CLIENT_ID: !Ref LinkedInClientId
+          CLIENT_SECRET: !Ref LinkedInClientSecret
+          MOMENTO_API_KEY: !Ref MomentoApiKey
+          CACHE_NAME: !Ref CacheName
+          REDIRECT: !Sub ${Origin}/accounts
+      Events:
+        AuthEvent:
+          Type: Api
+          Properties:
+            RestApiId: !Ref PublicApi
+            Path: /linkedin/redirect
+            Method: GET
 
   SendXPostFunction:
     Type: AWS::Serverless::Function
@@ -685,51 +700,6 @@ Resources:
             Path: /x/redirect
             Method: GET
 
-  CaptureLinkedInTokenFunction:
-    Type: AWS::Serverless::Function
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        <<: *esbuild-properties
-        EntryPoints:
-          - capture-linkedin-token.mjs
-    Properties:
-      Handler: capture-linkedin-token.handler
-      Policies:
-        - AWSLambdaBasicExecutionRole
-        - Version: 2012-10-17
-          Statement:
-            - Effect: Allow
-              Action: ssm:PutParameter
-              Resource: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/social-media/*
-            - Effect: Allow
-              Action: secretsmanager:GetSecretValue
-              Resource: !Ref LinkedInSecrets
-            - Effect: Allow
-              Action: dynamodb:UpdateItem
-              Resource: !GetAtt PostScheduleTable.Arn
-            - Effect: Allow
-              Action:
-                - scheduler:CreateSchedule
-                - scheduler:UpdateSchedule
-              Resource: !Sub arn:${AWS::Partition}:scheduler:${AWS::Region}:${AWS::AccountId}:schedule/token-expiration/*
-            - Effect: Allow
-              Action: iam:PassRole
-              Resource: !GetAtt ExpireLinkedInCredentialsSchedulerRole.Arn
-      Environment:
-        Variables:
-          TABLE_NAME: !Ref PostScheduleTable
-          SECRET_ID: !Ref LinkedInSecrets
-          EXPIRE_LI_CREDENTIALS_STATE_MACHINE: !GetAtt ExpireLinkedInCredentialsStateMachine.Arn
-          EXPIRE_LI_CREDENTIALS_ROLE: !GetAtt ExpireLinkedInCredentialsSchedulerRole.Arn
-      Events:
-        AuthEvent:
-          Type: Api
-          Properties:
-            RestApiId: !Ref PublicApi
-            Path: /linkedin/redirect
-            Method: GET
-
   SaveMessagesFunction:
     Type: AWS::Serverless::Function
     Metadata:
@@ -969,70 +939,6 @@ Resources:
             Pattern:
               detail-type:
                 - Schedule Social Post
-
-  ExpireLinkedInCredentialsSchedulerRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: 2012-10-17
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service:
-                - scheduler.amazonaws.com
-            Action: sts:AssumeRole
-      Policies:
-        - PolicyName: ExpireLISchedulerPolicy
-          PolicyDocument:
-            Version: 2012-10-17
-            Statement:
-              - Effect: Allow
-                Action: states:StartExecution
-                Resource: !GetAtt ExpireLinkedInCredentialsStateMachine.Arn
-
-  ExpireCredentialsStateMachineLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      RetentionInDays: 3
-
-  ExpireLinkedInCredentialsStateMachine:
-    Type: AWS::Serverless::StateMachine
-    Properties:
-      Type: EXPRESS
-      Logging:
-        Level: ALL
-        IncludeExecutionData: True
-        Destinations:
-          - CloudWatchLogsLogGroup:
-              LogGroupArn: !GetAtt ExpireCredentialsStateMachineLogGroup.Arn
-      DefinitionUri: state-machines/expire-linkedin-credentials.asl.json
-      DefinitionSubstitutions:
-        DynamoDbGetItem: !Sub arn:${AWS::Partition}:states:::dynamodb:getItem
-        DynamoDbUpdateItem: !Sub arn:${AWS::Partition}:states:::dynamodb:updateItem
-        EventBridgePutEvents: !Sub arn:${AWS::Partition}:states:::events:putEvents
-        TableName: !Ref PostScheduleTable
-      Policies:
-        - Version: 2012-10-17
-          Statement:
-            - Effect: Allow
-              Action: events:PutEvents
-              Resource: !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:event-bus/default
-            - Effect: Allow
-              Action:
-                - dynamodb:GetItem
-                - dynamodb:UpdateItem
-              Resource: !GetAtt PostScheduleTable.Arn
-            - Effect: Allow
-              Action:
-                - logs:CreateLogDelivery
-                - logs:GetLogDelivery
-                - logs:UpdateLogDelivery
-                - logs:DeleteLogDelivery
-                - logs:ListLogDeliveries
-                - logs:PutResourcePolicy
-                - logs:DescribeResourcePolicies
-                - logs:DescribeLogGroups
-              Resource: "*"
 
   SendSocialStateMachine:
     Type: AWS::Serverless::StateMachine

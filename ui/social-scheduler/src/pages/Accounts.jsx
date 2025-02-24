@@ -30,7 +30,7 @@ const Accounts = ({ user }) => {
         });
 
         const response = await request.response;
-        if(response.statusCode == 200){
+        if (response.statusCode == 200) {
           const body = await response.body.json();
           setAccounts(body.accounts);
         }
@@ -50,19 +50,17 @@ const Accounts = ({ user }) => {
 
   const handleAddSocialSubmit = async (formData) => {
     console.log('New social account data:', formData);
-    if (formData.platform.toLowerCase() == 'x') {
-      const request = await get({
-        apiName: 'user',
-        path: `/x/login${formData.name ? '?name=' + formData.name : ''}`,
-        options: { withCredentials: true, headers: { Authorization: token }, }
-      });
+    const request = await get({
+      apiName: 'user',
+      path: `/${formData.platform.toLowerCase()}/login${formData.name ? '?name=' + formData.name : ''}`,
+      options: { withCredentials: true, headers: { Authorization: token }, }
+    });
 
-      const response = await request.response;
-      if (response.statusCode == 200) {
-        const body = await response.body.json();
-        const { loginUrl } = body;
-        window.location = loginUrl;
-      }
+    const response = await request.response;
+    if (response.statusCode == 200) {
+      const body = await response.body.json();
+      const { loginUrl } = body;
+      window.location = loginUrl;
     }
 
     closeModal();

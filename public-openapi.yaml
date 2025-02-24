@@ -45,7 +45,7 @@ paths:
       x-amazon-apigateway-request-validator: Validate All
       x-amazon-apigateway-integration:
         uri:
-          Fn::Sub: arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${CaptureLinkedInTokenFunction.Arn}/invocations
+          Fn::Sub: arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${HandleLinkedInRedirectFunction.Arn}/invocations
         httpMethod: POST
         type: aws_proxy
 

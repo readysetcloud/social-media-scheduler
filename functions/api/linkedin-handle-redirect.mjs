@@ -37,10 +37,10 @@ export const handler = async (event) => {
 
     const expirationDate = new Date(Date.now() + token.expires_in * 1000).toISOString();
     await saveAccount(detail, me.data, expirationDate)
-    await storeCredentials(detail.tenantId, me.sub, token.access_token);
+    await storeCredentials(detail.tenantId, me.data.sub, token.access_token);
 
     const response = jsonResponse(302);
-    response.headers.Location = process.env.REDIRECT;
+    response.headers.Location = `${process.env.REDIRECT}?selected=${me.data.sub}`;
 
     return response;
   } catch (err) {

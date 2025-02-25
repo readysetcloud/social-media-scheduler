@@ -1,7 +1,9 @@
 .app-container {
   display: flex;
   flex-direction: column;
+  flex: 1;
   height: 100%;
+  width: 100%;
 }
 
 .title-bar {
@@ -154,19 +156,21 @@
 
 .content-area {
   margin-top: 60px;
-  padding: 0 20px;
   transition: margin-left 0.3s ease;
   min-height: calc(100vh - 60px);
   background-color: transparent;
   color: var(--color-content-text);
+  width: calc(100vw - 60px);
 }
 
 .content-area.collapsed {
-  margin-left: 40px;
+  margin-left: 60px;
+  width: calc(100vw - 60px);
 }
 
 .content-area.expanded {
-  margin-left: 230px;
+  margin-left: 250px;
+  width: calc(100vw - 250px);
 }
 
 .content-area h2 {

@@ -1,6 +1,7 @@
 .accounts-container {
   display: flex;
   height: calc(100vh - 60px);
+  width: 100%;
 }
 
 .sidebar {
@@ -28,25 +29,55 @@
 }
 
 .account-item {
-  padding: 10px;
-  border-bottom: 1px solid #ddd;
+  display: flex;
+  align-items: center;
+  padding: 10px 12px;
+  margin: 4px 0;
   cursor: pointer;
-  transition: background 0.2s;
+  transition: background 0.2s, box-shadow 0.2s;
   color: black;
+  border-radius: 6px;
 }
 
-.account-item:hover {
-  background-color: #f0f0f0;
+.account-item img {
+  width: 20px;
+  height: 20px;
+  margin-right: 8px;
+}
+
+.account-item.selected {
+  background-color: #dae8ff;
+  font-weight: bold;
+  box-shadow: inset 0 0 0 2px #0056b3;
+}
+
+.account-item.selected:hover {
+  background-color: #c5d8ff;
 }
 
 .add-account-item {
   font-weight: bold;
   color: #007bff;
+  padding: 10px 12px;
+  margin-top: 10px;
+  border-radius: 6px;
+  transition: background 0.2s;
+}
+
+.account-item:hover,
+.add-account-item:hover {
+  background-color: #e6f2ff;
 }
 
 .main-content {
   flex: 1;
   padding: 30px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  width: 100%;
+  gap: 30px;
 }
 
 .welcome-message {
@@ -59,7 +90,6 @@
   margin-top: 10px;
 }
 
-/* Loading & error messages */
 .loading-message,
 .error-message {
   text-align: center;
@@ -69,4 +99,148 @@
 
 .error-message {
   color: #d9534f;
+}
+/* --- ACCOUNT DETAILS CARD --- */
+.account-details,
+.test-message-container {
+  background: #fff;
+  padding: 24px;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 800px;
+  box-sizing: border-box;
+  border: 1px solid #ddd;
+}
+
+.account-header {
+  font-size: 20px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #333;
+}
+
+.account-header img {
+  width: 28px;
+  height: 28px;
+}
+
+.account-meta {
+  display: flex;
+  justify-content: flex-start;
+  gap: 24px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.detail-field {
+  font-size: 15px;
+  color: #555;
+  margin-bottom: 8px;
+}
+
+.input-field {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+  font-size: 15px;
+  transition: border 0.2s ease-in-out;
+}
+
+.input-field:focus {
+  border: 1px solid #007bff;
+  outline: none;
+}
+
+.button-container {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
+  gap: 10px;
+}
+
+.save-button,
+.send-button {
+  padding: 8px 14px;
+  font-size: 14px;
+  font-weight: bold;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.1s;
+  border: none;
+}
+
+.save-button {
+  background-color: #28a745;
+  color: white;
+}
+
+.save-button:hover {
+  background-color: #218838;
+}
+
+.delete-button {
+  background-color: #dc3545;
+  color: white;
+  padding: 8px 14px;
+  font-size: 14px;
+  font-weight: bold;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.1s;
+  border: none;
+}
+
+.delete-button:hover {
+  background-color: #c82333;
+}
+
+.send-button {
+  background-color: #007bff;
+  color: white;
+}
+
+.send-button:hover {
+  background-color: #0056b3;
+}
+
+.delete-button:active,
+.send-button:active,
+.save-button:active {
+  transform: scale(0.98);
+}
+
+.test-message-container {
+  border: 1px solid #ddd;
+  background: #fafafa;
+}
+
+.test-message-title {
+  font-size: 17px;
+  font-weight: bold;
+  margin-bottom: 8px;
+  margin-top: 0;
+  color: #333;
+}
+
+.textarea-field {
+  width: 100%;
+  height: 80px;
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font-size: 15px;
+  resize: none;
+  transition: border 0.2s ease-in-out;
+}
+
+.textarea-field:focus {
+  border: 1px solid #007bff;
+  outline: none;
 }

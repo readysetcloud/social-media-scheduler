@@ -36,7 +36,7 @@ export const handler = async (event) => {
     await storeCredentials(detail.tenantId, user.userId, user.accessToken, user.accessSecret);
 
     const response = jsonResponse(302);
-    response.headers.Location = process.env.REDIRECT;
+    response.headers.Location = `${process.env.REDIRECT}?selected=${user.userId}`;
 
     return response;
   } catch (err) {

@@ -72,7 +72,7 @@ Globals:
         ORIGIN: !Ref Origin
   Api:
     Cors:
-      AllowMethods: "'GET,POST,PUT'"
+      AllowMethods: "'GET,POST,PUT,DELETE'"
       AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
       AllowOrigin: !Sub "'${Origin}'"
       AllowCredentials: true
@@ -470,16 +470,16 @@ Resources:
           SECRET_ID: !Ref LinkedInSecrets
           TABLE_NAME: !Ref PostScheduleTable
 
-  AccountConfigView:
+  GetAccountFunction:
     Type: AWS::Serverless::Function
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
         <<: *esbuild-properties
         EntryPoints:
-          - views/account-config.mjs
+          - api/get-account-detail.mjs
     Properties:
-      Handler: views/account-config.handler
+      Handler: api/get-account-detail.handler
       Policies:
         - AWSLambdaBasicExecutionRole
         - Version: 2012-10-17
@@ -497,6 +497,40 @@ Resources:
             RestApiId: !Ref Api
             Path: /accounts/{accountId}
             Method: GET
+
+  DeleteAccountFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        <<: *esbuild-properties
+        EntryPoints:
+          - api/delete-account.mjs
+    Properties:
+      Handler: api/delete-account.handler
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action: dynamodb:DeleteItem
+              Resource: !GetAtt PostScheduleTable.Arn
+            - Effect: Allow
+              Action: ssm:DeleteParameter
+              Resource: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/social-media/*
+            - Effect: Allow
+              Action: events:PutEvents
+              Resource: !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:event-bus/default
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref PostScheduleTable
+      Events:
+        DeleteAccount:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /accounts/{accountId}
+            Method: DELETE
 
   ListAccountsFunction:
     Type: AWS::Serverless::Function
@@ -541,18 +575,8 @@ Resources:
         - Version: 2012-10-17
           Statement:
             - Effect: Allow
-              Action:
-                - ssm:PutParameter
-                - ssm:DeleteParameter
-              Resource: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/social-media/*
-            - Effect: Allow
-              Action:
-                - dynamodb:UpdateItem
-                - dynamodb:GetItem
+              Action: dynamodb:UpdateItem
               Resource: !GetAtt PostScheduleTable.Arn
-            - Effect: Allow
-              Action: scheduler:DeleteSchedule
-              Resource: !Sub arn:${AWS::Partition}:scheduler:${AWS::Region}:${AWS::AccountId}:schedule/token-expiration/*
       Environment:
         Variables:
           TABLE_NAME: !Ref PostScheduleTable

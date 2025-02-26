@@ -1,7 +1,7 @@
 import { CacheClient } from "@gomomento/sdk";
 import { AuthClient } from "linkedin-api-client";
 import { jsonResponse } from "../utils/helpers.mjs";
-import crypto from 'crypto';
+import short from 'short-uuid';
 
 const cacheClient = new CacheClient({ defaultTtlSeconds: 300 });
 
@@ -16,7 +16,7 @@ export const handler = async (event) => {
       redirectUrl: process.env.CALLBACK_URL
     });
 
-    const id = crypto.randomBytes(16).toString('hex');
+    const id = short.generate();
     const state = `${process.env.CALLBACK_URL}|${id}`;
     const authUrl = authClient.generateMemberAuthorizationUrl(
       ['openid', 'profile', 'w_member_social', 'email'],

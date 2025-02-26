@@ -176,3 +176,65 @@
 .content-area h2 {
   color: var(--color-accent);
 }
+
+.notification-wrapper {
+  position: relative;
+  margin-left: auto;
+}
+
+.notification-icon {
+  background: none;
+  border: none;
+  cursor: pointer;
+  position: relative;
+  font-size: 1.2rem;
+  color: black;
+  display: flex;
+}
+
+.notification-icon:focus {
+  outline: none;
+  border: none;
+}
+
+.badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  background: red;
+  color: white;
+  border-radius: 50%;
+  width: 18px;
+  height: 18px;
+  font-size: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.notification-dropdown {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  background: white;
+  border: 1px solid #ccc;
+  box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
+  width: 250px;
+  max-height: 300px;
+  overflow-y: auto;
+  z-index: 100;
+}
+
+.notification-item {
+  padding: 10px;
+  border-bottom: 1px solid #eee;
+}
+
+.notification-item:last-child {
+  border-bottom: none;
+}
+
+.notification-item:hover {
+  background: #f9f9f9;
+  cursor: pointer;
+}

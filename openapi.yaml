@@ -123,6 +123,69 @@ paths:
         httpMethod: POST
         type: aws_proxy
 
+  /posts:
+    post:
+      summary: Send a post
+      description: Sends a post to the specified accounts
+      tags:
+        - Posts
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PostMessage'
+      responses:
+        202:
+          description: The request succeeded and the messages are being processed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  url:
+                    type: string
+        400:
+          $ref: '#/components/responses/ClientError'
+        404:
+          $ref: '#/components/responses/NotFound'
+        409:
+          $ref: '#/components/responses/Conflict'
+        500:
+          $ref: '#/components/responses/InternalServerError'
+      x-amazon-apigateway-request-validator: Validate All
+      x-amazon-apigateway-integration:
+        uri:
+          Fn::Sub: arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${PostMessageFunction.Arn}/invocations
+        httpMethod: POST
+        type: aws_proxy
+
+  /notifications:
+    get:
+      summary: Gets all notifications for a user
+      description: Returns a list of notifications
+      tags:
+        - Notifications
+      responses:
+        200:
+          description: User notifications have been returned
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  notifications:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Notification'
+        500:
+          $ref: '#/components/responses/InternalServerError'
+      x-amazon-apigateway-request-validator: Validate All
+      x-amazon-apigateway-integration:
+        uri:
+          Fn::Sub: arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GetUserNotificationsFunction.Arn}/invocations
+        httpMethod: POST
+        type: aws_proxy
+        
   /accounts/{accountId}/messages:
     parameters:
       - $ref: '#/components/parameters/accountId'
@@ -394,7 +457,7 @@ components:
           type: string
       required:
         - name
-        
+
     AccountDetail:
       type: object
       properties:
@@ -419,6 +482,60 @@ components:
         - screenName
         - platform
         - createdDate
+
+    PostMessage:
+      type: object
+      properties:
+        accounts:
+          type: array
+          items:
+            type: string
+        message:
+          type: object
+          properties:
+            text:
+              type: string
+            media:
+              type: array
+              items:
+                type: object
+                properties:
+                  mimeType:
+                    type: string
+                  url:
+                    type: string
+                required:
+                  - mimeType
+                  - url
+          required:
+            - text
+        sendAt:
+          type: string
+          description: ISO8601 date, "now", or "auto"
+      required:
+        - accounts
+        - message
+        - sendAt
+
+    Notification:
+      type: object
+      properties:
+        id:
+          type: string
+        message:
+          type: string
+        date:
+          type: string
+          format: date-time
+        isUnread:
+          type: boolean
+        link:
+          type: string
+      required:
+        - id
+        - message
+        - date
+        - isUnread
 
   responses:
     Created: #201

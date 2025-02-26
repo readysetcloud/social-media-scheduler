@@ -73,7 +73,7 @@ Globals:
   Api:
     Cors:
       AllowMethods: "'GET,POST,PUT,DELETE'"
-      AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+      AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,idempotency-key'"
       AllowOrigin: !Sub "'${Origin}'"
       AllowCredentials: true
 
@@ -621,6 +621,125 @@ Resources:
             Pattern:
               detail-type:
                 - Delete Social Campaign
+
+  SendUserNotificationFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        <<: *esbuild-properties
+        EntryPoints:
+          - event-handlers/send-user-notification.mjs
+    Properties:
+      Handler: event-handlers/send-user-notification.handler
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action: dynamodb:PutItem
+              Resource: !GetAtt PostScheduleTable.Arn
+            - Effect: Allow
+              Action: dynamodb:Query
+              Resource: !Sub ${PostScheduleTable.Arn}/index/schedules
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref PostScheduleTable
+          CACHE_NAME: !Ref CacheName
+      Events:
+        SendEvent:
+          Type: EventBridgeRule
+          Properties:
+            Pattern:
+              detail-type:
+                - Send User Notification
+
+  GetUserNotificationsFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        <<: *esbuild-properties
+        EntryPoints:
+          - api/get-user-notifications.mjs
+    Properties:
+      Handler: api/get-user-notifications.handler
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action: dynamodb:Query
+              Resource: !GetAtt PostScheduleTable.Arn
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref PostScheduleTable
+      Events:
+        AuthEvent:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /notifications
+            Method: GET
+
+  GetUnreadNotificationsFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        <<: *esbuild-properties
+        EntryPoints:
+          - api/get-unread-notifications.mjs
+    Properties:
+      Handler: api/get-unread-notifications.handler
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action: dynamodb:Query
+              Resource: !Sub ${PostScheduleTable.Arn}/index/schedules
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref PostScheduleTable
+      Events:
+        AuthEvent:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /notifications/unread
+            Method: GET
+
+  PostMessageFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        <<: *esbuild-properties
+        EntryPoints:
+          - api/post-message.mjs
+    Properties:
+      Handler: api/post-message.handler
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action: dynamodb:Query
+              Resource: !GetAtt PostScheduleTable.Arn
+            - Effect: Allow
+              Action: events:PutEvents
+              Resource: !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:event-bus/default
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref PostScheduleTable
+      Events:
+        AuthEvent:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /messages
+            Method: POST
 
   SendTestPostFunction:
     Type: AWS::Serverless::Function

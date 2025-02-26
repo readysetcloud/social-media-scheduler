@@ -68,3 +68,7 @@ export const getAccountKeys = async (tenantId, accountId) => {
 
   return accounts[accountId];
 };
+
+export const checkIdempotency = async (headers) => {
+
+};

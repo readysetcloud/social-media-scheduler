@@ -7,6 +7,7 @@ import { marshall } from "@aws-sdk/util-dynamodb";
 import { jsonResponse } from "../utils/helpers.mjs";
 import { getXAppCredentials } from "../utils/x.mjs";
 import { TwitterApi } from "twitter-api-v2";
+import short from 'short-uuid';
 
 const cacheClient = new CacheClient({ defaultTtlSeconds: 300 });
 const ddb = new DynamoDBClient();
@@ -32,11 +33,12 @@ export const handler = async (event) => {
 
     const xClient = new TwitterApi(creds);
     const user = await xClient.login(oauth_verifier);
-    await saveAccount(detail, user);
-    await storeCredentials(detail.tenantId, user.userId, user.accessToken, user.accessSecret);
+    const accountId = short.generate();
+    await saveAccount(accountId, detail, user);
+    await storeCredentials(detail.tenantId, accountId, user.accessToken, user.accessSecret);
 
     const response = jsonResponse(302);
-    response.headers.Location = `${process.env.REDIRECT}?selected=${user.userId}`;
+    response.headers.Location = `${process.env.REDIRECT}?selected=${accountId}`;
 
     return response;
   } catch (err) {
@@ -45,14 +47,14 @@ export const handler = async (event) => {
   }
 };
 
-const saveAccount = async (detail, user) => {
+const saveAccount = async (accountId, detail, user) => {
   console.log(detail, user);
   await ddb.send(new PutItemCommand({
     TableName: process.env.TABLE_NAME,
     Item: marshall({
       pk: detail.tenantId,
-      sk: `account#${user.userId}`,
-      id: user.userId,
+      sk: `account#${accountId}`,
+      id: accountId,
       name: detail.name ?? user.screenName,
       screenName: user.screenName,
       platform: 'x',

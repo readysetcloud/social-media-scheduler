@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { get, del, put } from 'aws-amplify/api';
+import { get, del, put, post } from 'aws-amplify/api';
 import { fetchAuthSession } from 'aws-amplify/auth';
 import Modal from '../components/Modal';
 import AddSocial from '../components/AddSocial';
@@ -14,7 +14,7 @@ const Accounts = ({ user }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState(null);
   const [name, setName] = useState('');
-  const [testMessage, setTestMessage] = useState('');
+  const [message, setMessage] = useState('');
   const [token, setToken] = useState(null);
 
   const openModal = () => setIsModalOpen(true);
@@ -81,15 +81,38 @@ const Accounts = ({ user }) => {
   };
 
   const handleAccountClick = async (account) => {
-    setTestMessage('');
+    setMessage('');
     navigate(`?selected=${account.id}`, { replace: true });
 
     loadAccount(account.id);
   };
 
-  const handleSendTestMessage = () => {
-    console.log(`Test message for ${selectedAccount.name}:`, testMessage);
-    alert(`Test message sent: ${testMessage}`);
+  const handleSendPost = async () => {
+    const request = await post({
+      apiName: 'user',
+      path: '/posts',
+      options: {
+        withCredentials: true,
+        headers: {
+          Authorization: token,
+          'idempotency-key': crypto.randomUUID()
+         },
+        body: {
+          message: {
+            text: message
+          },
+          accounts: [selectedAccount.id],
+          sendAt: 'now'
+        }
+      }
+    });
+
+    const response = await request.response;
+    if (response.statusCode == 202) {
+      alert('Message posted! You will be notified shortly with the link.');
+    } else {
+      alert('Could not post message. Please try again.');
+    }
   };
 
   const handleDeleteAccount = async (accountId) => {
@@ -217,8 +240,8 @@ const Accounts = ({ user }) => {
                 <p className="detail-field"><strong>Platform:</strong> {selectedAccount.platform}</p>
                 <p className="detail-field"><strong>Linked on:</strong> {new Date(selectedAccount.createdDate).toLocaleString()}</p>
                 {selectedAccount.expires && (
-                <p className="detail-field"><strong>Credentials expire:</strong> {new Date(selectedAccount.expires).toLocaleString()}</p>
-              )}
+                  <p className="detail-field"><strong>Credentials expire:</strong> {new Date(selectedAccount.expires).toLocaleString()}</p>
+                )}
               </div>
 
               <label className="detail-field">
@@ -237,18 +260,17 @@ const Accounts = ({ user }) => {
               </div>
             </div>
 
-            {/* TEST MESSAGE CARD (ONLY SHOW IF BEFORE EXPIRES OR NO EXPIRES) */}
             {(!selectedAccount.expires || new Date(selectedAccount.createdDate) < new Date(selectedAccount.expires)) && (
-              <div className="test-message-container">
-                <h3 className="test-message-title">Send a Test Message</h3>
+              <div className="message-container">
+                <h3 className="message-title">Post a Message</h3>
                 <textarea
-                  value={testMessage}
-                  onChange={(e) => setTestMessage(e.target.value)}
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
                   className="textarea-field"
-                  placeholder="Enter test message..."
+                  placeholder="What do you want to say??"
                 />
                 <div className="button-container">
-                  <button className="send-button" onClick={handleSendTestMessage}>Send Test</button>
+                  <button className="send-button" onClick={handleSendPost}>Post</button>
                 </div>
               </div>
             )}

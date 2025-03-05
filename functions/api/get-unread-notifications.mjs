@@ -4,7 +4,6 @@ import { DynamoDBClient, QueryCommand } from "@aws-sdk/client-dynamodb";
 import { marshall } from "@aws-sdk/util-dynamodb";
 import { jsonResponse } from "../utils/helpers.mjs";
 
-const topics = new TopicClient({});
 const ddb = new DynamoDBClient();
 
 export const handler = async (event) => {
@@ -18,6 +17,7 @@ export const handler = async (event) => {
     return jsonResponse(200, { count })
   } catch (err) {
     console.error(err);
+    return jsonResponse(500, { message: 'Something went wrong'});
   }
 };
 

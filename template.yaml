@@ -262,6 +262,13 @@ Resources:
       ExplicitAuthFlows:
         - ALLOW_USER_SRP_AUTH
         - ALLOW_REFRESH_TOKEN_AUTH
+      AccessTokenValidity: 1
+      IdTokenValidity: 1
+      RefreshTokenValidity: 30
+      TokenValidityUnits:
+        AccessToken: hours
+        IdToken: hours
+        RefreshToken: days
 
   CognitoIdentityPool:
     Type: AWS::Cognito::IdentityPool
@@ -332,6 +339,29 @@ Resources:
           Type: Cognito
           Properties:
             Trigger: PostConfirmation
+            UserPool: !Ref CognitoUserPool
+
+  EnrichUserClaimsFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        <<: *esbuild-properties
+        EntryPoints:
+          - event-handlers/enrich-user-claims.mjs
+    Properties:
+      Handler: event-handlers/enrich-user-claims.handler
+      Policies:
+        - AWSLambdaBasicExecutionRole
+      Environment:
+        Variables:
+          CACHE_NAME: !Ref CacheName
+          MOMENTO_API_KEY: !Ref MomentoApiKey
+      Events:
+        Cognito:
+          Type: Cognito
+          Properties:
+            Trigger: PreTokenGeneration
             UserPool: !Ref CognitoUserPool
 
   AddUserToTierFunction:
@@ -710,6 +740,62 @@ Resources:
             Path: /notifications/unread
             Method: GET
 
+  ReadNotificationFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        <<: *esbuild-properties
+        EntryPoints:
+          - api/read-notification.mjs
+    Properties:
+      Handler: api/read-notification.handler
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action: dynamodb:UpdateItem
+              Resource: !GetAtt PostScheduleTable.Arn
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref PostScheduleTable
+      Events:
+        AuthEvent:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /notifications/{notificationId}/read
+            Method: POST
+
+  DeleteNotificationFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        <<: *esbuild-properties
+        EntryPoints:
+          - api/delete-notification.mjs
+    Properties:
+      Handler: api/delete-notification.handler
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action: dynamodb:DeleteItem
+              Resource: !GetAtt PostScheduleTable.Arn
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref PostScheduleTable
+      Events:
+        AuthEvent:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /notifications/{notificationId}
+            Method: DELETE
+
   PostMessageFunction:
     Type: AWS::Serverless::Function
     Metadata:
@@ -1045,6 +1131,7 @@ Resources:
         LambdaInvoke: !Sub arn:${AWS::Partition}:states:::lambda:invoke
         SaveMessages: !GetAtt SaveMessagesFunction.Arn
         EventBridgePutEventsAndWait: !Sub arn:${AWS::Partition}:states:::events:putEvents.waitForTaskToken
+        StepFunctionsStartExecution: !Sub arn:${AWS::Partition}:states:::states:startExecution
       Policies:
         - Version: 2012-10-17
           Statement:
@@ -1075,6 +1162,9 @@ Resources:
             - Effect: Allow
               Action: dynamodb:Query
               Resource: !Sub ${PostScheduleTable.Arn}/index/schedules
+            - Effect: Allow
+              Action: states:StartExecution
+              Resource: !GetAtt SendSocialStateMachine.Arn
       Events:
         ScheduledSocialPostEvent:
           Type: EventBridgeRule

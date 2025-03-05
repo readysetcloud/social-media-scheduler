@@ -16,8 +16,8 @@ export const handler = async (event) => {
 
     const body = JSON.parse(event.body);
 
-    const isValidSendAtTime = validateSendAtTime(body.sendAt);
-    if (!isValidSendAtTime) {
+    const sendAtTime = validateSendAtTime(body.sendAt);
+    if (!sendAtTime) {
       return jsonResponse(400, { message: 'sendAt is not valid. Please select a future date, "now", or "auto".' });
     }
 
@@ -32,13 +32,15 @@ export const handler = async (event) => {
       accountMessageMap.push({ account: account.id, referenceNumber });
       return {
         Source: 'post-message-user',
-        DetailType: `Post ${account.platform.charAt(0).toUpperCase() + account.platform.slice(1)} Message`,
+        DetailType: 'Schedule Social Post',
         Detail: JSON.stringify({
           tenantId,
           accountId: account.id,
           referenceNumber,
-          message: body.message,
-          sendAt: body.sendAt
+          messages: [{
+            message: body.message,
+            sendAt: sendAtTime
+          }]
         })
       };
     });
@@ -84,13 +86,15 @@ const loadAccounts = async (tenantId, accountIds) => {
 const validateSendAtTime = (sendAt) => {
   const sendAtTime = sendAt.toLowerCase();
   if (sendAtTime == 'now' || sendAtTime == 'auto') {
-    return true;
+    return sendAtTime;
   }
 
   const date = new Date(sendAt);
   if (isNaN(date.getTime())) {
-    return false;
+    return;
   }
 
-  return date > new Date();
+  if (date > new Date()) {
+    return date.toISOString().slice(0, 19);
+  }
 };

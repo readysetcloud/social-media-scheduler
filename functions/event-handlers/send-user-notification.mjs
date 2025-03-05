@@ -8,7 +8,7 @@ const ddb = new DynamoDBClient();
 
 export const handler = async (event) => {
   try {
-    const { tenantId, message, link } = event.detail;
+    const { tenantId, message, link, external } = event.detail;
 
     const id = ulid();
     await ddb.send(new PutItemCommand({
@@ -21,6 +21,7 @@ export const handler = async (event) => {
         sort: `unread#${id}`,
         message,
         ...link && { link },
+        ...external && { external },
         ttl: Math.floor((Date.now() / 1000) + 7 * 24 * 60 * 60)
       })
     }));

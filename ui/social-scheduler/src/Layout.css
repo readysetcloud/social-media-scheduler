@@ -199,10 +199,10 @@
 
 .badge {
   position: absolute;
-  top: -5px;
-  right: -5px;
-  background: red;
-  color: white;
+  top: 3px;
+  right: 5px;
+  background: var(--color-accent-dark);
+  color: var(--color-content-text);
   border-radius: 50%;
   width: 18px;
   height: 18px;
@@ -223,11 +223,15 @@
   max-height: 300px;
   overflow-y: auto;
   z-index: 100;
+  border-radius: 5px;
 }
 
 .notification-item {
-  padding: 10px;
+  padding: 10px 10px 6px 10px;
   border-bottom: 1px solid #eee;
+  display: flex;
+  flex-direction: column;
+  cursor: pointer;
 }
 
 .notification-item:last-child {
@@ -236,5 +240,66 @@
 
 .notification-item:hover {
   background: #f9f9f9;
+}
+
+.notification-text {
+  font-size: 0.9rem;
+  color: #333;
+}
+
+.notification-actions {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 5px;
+}
+
+.notification-link {
+  font-size: 0.75rem;
+  color: var(--color-accent-text);
   cursor: pointer;
+  text-decoration: none;
+}
+
+.notification-link:hover {
+  text-decoration: underline;
+}
+
+.notification-link.mark-read {
+  text-align: left;
+}
+
+.notification-link.dismiss {
+  text-align: right;
+}
+
+.notification-skeleton {
+  padding: 10px 10px 6px 10px;
+  border-bottom: 1px solid #eee;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.notification-skeleton-actions {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  gap: 50%;
+}
+
+.skeleton-flex {
+  flex: 1;
+}
+
+.notification-item.unread {
+  background-color: var(--color-accent-light);
+}
+
+.notification-item.unread .notification-text {
+  font-weight: bold;
+  color: var(--color-nav-text);
+}
+
+.notification-item.unread:hover {
+  background-color: var(--color-accent);
 }

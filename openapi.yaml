@@ -48,8 +48,8 @@ paths:
             text/html:
               schema:
                 type: string
-        404:
-          $ref: '#/components/responses/NotFound'
+        403:
+          $ref: '#/components/responses/Unauthorized'
         500:
           $ref: '#/components/responses/InternalServerError'
       x-amazon-apigateway-request-validator: Validate All
@@ -70,6 +70,8 @@ paths:
       responses:
         200:
           $ref: '#/components/schemas/AccountDetail'
+        403:
+          $ref: '#/components/responses/Unauthorized'
         404:
           $ref: '#/components/responses/NotFound'
         500:
@@ -93,7 +95,9 @@ paths:
         required: true
       responses:
         204:
-          $ref: '#/components/responses/NoContentUpdate'
+          $ref: '#/components/responses/NoContent'
+        403:
+          $ref: '#/components/responses/Unauthorized'
         404:
           $ref: '#/components/responses/NotFound'
         500:
@@ -111,9 +115,9 @@ paths:
         - Account
       responses:
         204:
-          $ref: '#/components/responses/NoContentUpdate'
-        404:
-          $ref: '#/components/responses/NotFound'
+          $ref: '#/components/responses/NoContent'
+        403:
+          $ref: '#/components/responses/Unauthorized'
         500:
           $ref: '#/components/responses/InternalServerError'
       x-amazon-apigateway-request-validator: Validate All
@@ -144,12 +148,12 @@ paths:
                 properties:
                   url:
                     type: string
+        403:
+          $ref: '#/components/responses/Unauthorized'
         400:
           $ref: '#/components/responses/ClientError'
         404:
           $ref: '#/components/responses/NotFound'
-        409:
-          $ref: '#/components/responses/Conflict'
         500:
           $ref: '#/components/responses/InternalServerError'
       x-amazon-apigateway-request-validator: Validate All
@@ -177,6 +181,8 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/Notification'
+        403:
+          $ref: '#/components/responses/Unauthorized'
         500:
           $ref: '#/components/responses/InternalServerError'
       x-amazon-apigateway-request-validator: Validate All
@@ -185,7 +191,103 @@ paths:
           Fn::Sub: arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GetUserNotificationsFunction.Arn}/invocations
         httpMethod: POST
         type: aws_proxy
-        
+
+  /notifications/{notificationId}:
+    parameters:
+      - $ref: '#/components/parameters/notificationId'
+    delete:
+      summary: Delete a notification
+      description: Removes a notification from the user's list
+      tags:
+        - Notifications
+      responses:
+        204:
+          $ref: '#/components/responses/NoContent'
+        403:
+          $ref: '#/components/responses/Unauthorized'
+        500:
+          $ref: '#/components/responses/InternalServerError'
+      x-amazon-apigateway-request-validator: Validate All
+      x-amazon-apigateway-integration:
+        uri:
+          Fn::Sub: arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${DeleteNotificationFunction.Arn}/invocations
+        httpMethod: POST
+        type: aws_proxy
+
+  /notifications/{notificationId}/read:
+    parameters:
+      - $ref: '#/components/parameters/notificationId'
+    post:
+      summary: Read a notification
+      description: Mark a notification as read and optionally follow the backing link
+      tags:
+        - Notifications
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                follow:
+                  type: boolean
+              required:
+                - follow
+      responses:
+        200:
+          description: The request succeeded and a url is returned
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  redirectUrl:
+                    type: string
+        204:
+          $ref: '#/components/responses/NoContent'
+        400:
+          $ref: '#/components/responses/ClientError'
+        403:
+          $ref: '#/components/responses/Unauthorized'
+        404:
+          $ref: '#/components/responses/NotFound'
+        500:
+          $ref: '#/components/responses/InternalServerError'
+      x-amazon-apigateway-request-validator: Validate All
+      x-amazon-apigateway-integration:
+        uri:
+          Fn::Sub: arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ReadNotificationFunction.Arn}/invocations
+        httpMethod: POST
+        type: aws_proxy
+
+  /notifications/unread:
+    get:
+      summary: Gets unread notification count
+      description: Returns a number value for unread notifications
+      tags:
+        - Notifications
+      responses:
+        200:
+          description: Unread notification count is returned
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count:
+                    type: integer
+                required:
+                  - count
+        403:
+          $ref: '#/components/responses/Unauthorized'
+        500:
+          $ref: '#/components/responses/InternalServerError'
+      x-amazon-apigateway-request-validator: Validate All
+      x-amazon-apigateway-integration:
+        uri:
+          Fn::Sub: arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GetUnreadNotificationsFunction.Arn}/invocations
+        httpMethod: POST
+        type: aws_proxy
+
   /accounts/{accountId}/messages:
     parameters:
       - $ref: '#/components/parameters/accountId'
@@ -221,10 +323,10 @@ paths:
                     type: string
         400:
           $ref: '#/components/responses/ClientError'
+        403:
+          $ref: '#/components/responses/Unauthorized'
         404:
           $ref: '#/components/responses/NotFound'
-        409:
-          $ref: '#/components/responses/Conflict'
         500:
           $ref: '#/components/responses/InternalServerError'
       x-amazon-apigateway-request-validator: Validate All
@@ -257,8 +359,8 @@ paths:
                 properties:
                   loginUrl:
                     type: string
-        404:
-          $ref: '#/components/responses/NotFound'
+        403:
+          $ref: '#/components/responses/Unauthorized'
         500:
           $ref: '#/components/responses/InternalServerError'
       x-amazon-apigateway-request-validator: Validate All
@@ -291,8 +393,8 @@ paths:
                 properties:
                   loginUrl:
                     type: string
-        404:
-          $ref: '#/components/responses/NotFound'
+        403:
+          $ref: '#/components/responses/Unauthorized'
         500:
           $ref: '#/components/responses/InternalServerError'
       x-amazon-apigateway-request-validator: Validate All
@@ -381,7 +483,7 @@ paths:
                 - message
       responses:
         204:
-          $ref: '#/components/responses/NoContentUpdate'
+          $ref: '#/components/responses/NoContent'
         404:
           $ref: '#/components/responses/NotFound'
         500:
@@ -399,7 +501,7 @@ paths:
         - Messages
       responses:
         204:
-          $ref: '#/components/responses/NoContentUpdate'
+          $ref: '#/components/responses/NoContent'
         500:
           $ref: '#/components/responses/InternalServerError'
       x-amazon-apigateway-request-validator: Validate All
@@ -417,6 +519,15 @@ components:
       description: Identifier for an account
       required: true
       example: 09sl3415098gplmn
+      schema:
+        type: string
+
+    notificationId:
+      name: notificationId
+      in: path
+      description: Identifier for a notification
+      required: true
+      example: ja93j567dfgks7
       schema:
         type: string
 
@@ -549,8 +660,20 @@ components:
                 type: string
             required:
               - id
-    NoContentUpdate: #204
-      description: The request succeeded and updated an existing item
+    NoContent: #204
+      description: The request succeeded and nothing was returned
+    Unauthorized: #403
+      description: The request was not authorized
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+                example: The provided token is not valid
+            required:
+              - message
     ClientError: #400
       description: The request was in an invalid format
       content:

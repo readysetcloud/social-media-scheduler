@@ -94,16 +94,23 @@
         "ProcessorConfig": {
           "Mode": "INLINE"
         },
-        "StartAt": "Has scheduled date?",
+        "StartAt": "When to post?",
         "States": {
-          "Has scheduled date?": {
+          "When to post?": {
             "Type": "Choice",
             "Choices": [
               {
-                "Condition": "{% $exists($states.input.messageDetail.scheduledDate) %}",
+                "Condition": "{% $states.input.messageDetail.sendAt = \"now\" %}",
+                "Assign": {
+                  "scheduledDate": "now"
+                },
+                "Next": "Update message status - pending"
+              },
+              {
+                "Condition": "{% $states.input.messageDetail.sendAt != \"auto\" %}",
                 "Next": "Update message status - pending",
                 "Assign": {
-                  "scheduledDate": "{% $states.input.messageDetail.scheduledDate %}"
+                  "scheduledDate": "{% $states.input.messageDetail.sendAt %}"
                 }
               }
             ],
@@ -298,8 +305,31 @@
         "ProcessorConfig": {
           "Mode": "INLINE"
         },
-        "StartAt": "Is message already scheduled?",
+        "StartAt": "Post or schedule?",
         "States": {
+          "Post or schedule?": {
+            "Type": "Choice",
+            "Choices": [
+              {
+                "Next": "Post now",
+                "Condition": "{% $scheduledDate = \"now\" %}"
+              }
+            ],
+            "Default": "Is message already scheduled?"
+          },
+          "Post now": {
+            "Type": "Task",
+            "Resource": "${StepFunctionsStartExecution}",
+            "Arguments": {
+              "StateMachineArn": "${SendSocialPostStateMachine}",
+              "Input": {
+                "messageId": "{% $states.input.messageDetail.id %}",
+                  "accountId": "{% $accountId %}",
+                  "tenantId": "{% $tenantId %}"
+              }
+            },
+            "End": true
+          },
           "Is message already scheduled?": {
             "Type": "Task",
             "Next": "Update message posting details",

@@ -110,6 +110,7 @@ const Accounts = ({ user }) => {
     const response = await request.response;
     if (response.statusCode == 202) {
       alert('Message posted! You will be notified shortly with the link.');
+      setMessage('');
     } else {
       alert('Could not post message. Please try again.');
     }

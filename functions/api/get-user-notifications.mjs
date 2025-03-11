@@ -35,6 +35,7 @@ const getNotifications = async (tenantId) => {
         ':pk': tenantId,
         ':sk': 'notification#'
       }),
+      ScanIndexForward: false,
       ...lastEvaluatedKey && { ExclusiveStartKey: lastEvaluatedKey }
     }));
 

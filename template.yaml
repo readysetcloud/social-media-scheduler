@@ -73,7 +73,7 @@ Globals:
   Api:
     Cors:
       AllowMethods: "'GET,POST,PUT,DELETE'"
-      AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,idempotency-key'"
+      AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,Idempotency-Key'"
       AllowOrigin: !Sub "'${Origin}'"
       AllowCredentials: true
 
@@ -676,6 +676,7 @@ Resources:
         Variables:
           TABLE_NAME: !Ref PostScheduleTable
           CACHE_NAME: !Ref CacheName
+          MOMENTO_API_KEY: !Ref MomentoApiKey
       Events:
         SendEvent:
           Type: EventBridgeRule
@@ -824,7 +825,7 @@ Resources:
           Type: Api
           Properties:
             RestApiId: !Ref Api
-            Path: /messages
+            Path: /posts
             Method: POST
 
   SendTestPostFunction:

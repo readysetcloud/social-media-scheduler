@@ -69,7 +69,9 @@
           "tenantId": "{% $tenantId %}",
           "accountId": "{% $accountId %}",
           "referenceNumber": "{% $referenceNumber %}",
-          "messages": "{% $states.context.Execution.Input.detail.messages %}"
+          "messages": "{% $states.context.Execution.Input.detail.messages %}",
+          "screenName": "{% $account.screenName.S %}",
+          "platform": "{% $account.platform.S %}"
         }
       },
       "Output": "{% $states.result.Payload %}",
@@ -186,7 +188,6 @@
             "Output": {
               "messageDetail": "{% $states.input.messageDetail %}"
             }
-
           },
           "Get schedule date": {
             "Type": "Task",
@@ -305,14 +306,36 @@
         "ProcessorConfig": {
           "Mode": "INLINE"
         },
-        "StartAt": "Post or schedule?",
+        "StartAt": "Reload message",
         "States": {
+          "Reload message": {
+            "Type": "Task",
+            "Resource": "${DynamoDbGetItem}",
+            "Arguments": {
+              "TableName": "${TableName}",
+              "Key": {
+                "pk": {
+                  "S": "{% $tenantId & \"#\" & $accountId & \"#\" & $states.input.messageDetail.id %}"
+                },
+                "sk": {
+                  "S": "message"
+                }
+              }
+            },
+            "Next": "Post or schedule?",
+            "Assign": {
+              "message": "{% $states.result.Item %}"
+            },
+            "Output": {
+              "messageDetail": "{% $states.input.messageDetail %}"
+            }
+          },
           "Post or schedule?": {
             "Type": "Choice",
             "Choices": [
               {
                 "Next": "Post now",
-                "Condition": "{% $scheduledDate = \"now\" %}"
+                "Condition": "{% $message.scheduledDate.S = \"now\" %}"
               }
             ],
             "Default": "Is message already scheduled?"
@@ -324,8 +347,8 @@
               "StateMachineArn": "${SendSocialPostStateMachine}",
               "Input": {
                 "messageId": "{% $states.input.messageDetail.id %}",
-                  "accountId": "{% $accountId %}",
-                  "tenantId": "{% $tenantId %}"
+                "accountId": "{% $accountId %}",
+                "tenantId": "{% $tenantId %}"
               }
             },
             "End": true
@@ -334,7 +357,7 @@
             "Type": "Task",
             "Next": "Update message posting details",
             "Arguments": {
-              "Name": "{% $tenantId & \"-\" & $accountId & \"-\" & $states.input.messageDetail.platform & \"-\" & $states.input.messageDetail.id %}",
+              "Name": "{% $tenantId & \"-\" & \"-\" & $message.platform.S & \"-\" & $states.input.messageDetail.id %}",
               "GroupName": "social"
             },
             "Resource": "${SchedulerGetSchedule}",
@@ -362,9 +385,9 @@
                 "Mode": "FLEXIBLE",
                 "MaximumWindowInMinutes": 3
               },
-              "Name": "{% $tenantId & \"-\" & $accountId & \"-\" & $states.input.messageDetail.platform & \"-\" & $states.input.messageDetail.id %}",
+              "Name": "{% $tenantId & \"-\" & \"-\" & $message.platform.S & \"-\" & $states.input.messageDetail.id %}",
               "GroupName": "social",
-              "ScheduleExpression": "{% \"at(\" & $states.input.messageDetail.scheduledDate & \")\" %}",
+              "ScheduleExpression": "{% \"at(\" & $message.scheduledDate.S & \")\" %}",
               "Target": {
                 "Arn": "${SendSocialPostStateMachine}",
                 "RoleArn": "${SchedulerRole}",
@@ -392,9 +415,9 @@
                 "Mode": "FLEXIBLE",
                 "MaximumWindowInMinutes": 3
               },
-              "Name": "{% $tenantId & \"-\" & $accountId & \"-\" & $states.input.messageDetail.platform & \"-\" & $states.input.messageDetail.id %}",
+              "Name": "{% $tenantId & \"-\" & \"-\" & $message.platform.S & \"-\" & $states.input.messageDetail.id %}",
               "GroupName": "social",
-              "ScheduleExpression": "{% \"at(\" & $states.input.messageDetail.scheduledDate & \")\" %}",
+              "ScheduleExpression": "{% \"at(\" & $message.scheduledDate.S & \")\" %}",
               "Target": {
                 "Arn": "${SendSocialPostStateMachine}",
                 "RoleArn": "${SchedulerRole}",
@@ -438,7 +461,7 @@
                   "S": "scheduled"
                 },
                 ":scheduledDate": {
-                  "S": "{% $states.input.messageDetail.scheduledDate %}"
+                  "S": "{% $message.scheduledDate.S %}"
                 },
                 ":lastUpdate": {
                   "S": "{% $now() %}"

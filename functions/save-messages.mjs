@@ -24,7 +24,9 @@ export const handler = async (state) => {
           ...message,
           campaign: state.referenceNumber,
           status: 'unscheduled',
-          type: `${state.accountId}#${message.platform}`,
+          type: `${state.accountId}#${state.platform}`,
+          platform: state.platform,
+          screenName: state.screenName,
           sort: 'DO_NOT_SEND',
           ttl: Math.floor(Date.now() / 1000 + 25 * 60 * 60) // Set a cleanup date if workflow fails
         })

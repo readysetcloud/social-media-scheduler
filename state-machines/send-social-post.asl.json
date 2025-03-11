@@ -178,7 +178,11 @@
           }
         }
       },
-      "Next": "Successfully sent?"
+      "Next": "Successfully sent?",
+      "Output": {
+        "id": "{% $states.input.id %}",
+        "link": "{% $states.input.link %}"
+      }
     },
     "Successfully sent?": {
       "Type": "Choice",
@@ -197,11 +201,12 @@
         "Entries": [
           {
             "Detail": {
-              "messageId": "{% $messageId %}",
-              "accountId": "{% $accountId %}",
+              "message": "{% \"Unable to post message on \" & $uppercase($substring($message.platform, 0, 1)) & $substring($message.platform, 1) & \". Click to try again.\" %}",
+              "link": "{% \"/messages/\" & $messageId %}",
+              "external": "false",
               "tenantId": "{% $tenantId %}"
             },
-            "DetailType": "Social Post Failed",
+            "DetailType": "Send User Notification",
             "Source": "SocialPostSender"
           }
         ]
@@ -220,12 +225,12 @@
         "Entries": [
           {
             "Detail": {
-              "messageId": "{% $messageId %}",
-              "postId": "{% $states.input.id %}",
-              "accountId": "{% $accountId %}",
+              "message": "{% \"Message posted on \" & $uppercase($substring($message.platform, 0, 1)) & $substring($message.platform, 1) & \". Click to view.\" %}",
+              "link": "{% $states.input.link %}",
+              "external": "true",
               "tenantId": "{% $tenantId %}"
             },
-            "DetailType": "Social Post Sent",
+            "DetailType": "Send User Notification",
             "Source": "SocialPostSender"
           }
         ]

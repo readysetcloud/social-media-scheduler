@@ -5,44 +5,44 @@ export const handler = async (state) => {
   try {
     const client = await getClient(state.tenantId, state.accountId);
 
-    let mediaId;
-    if (state.image || state.video) {
-      mediaId = await uploadMedia(client, state);
+    let mediaIds = [];
+    if (state.message.media?.length) {
+      mediaIds = await uploadMedia(client, state.message.media);
     }
 
     const response = await client.v2.tweet({
-      text: state.message,
-      ...mediaId && { media: { media_ids: [mediaId] } }
+      text: state.message.text,
+      ...mediaIds.length && { media: { media_ids: [mediaIds] } }
     });
 
-    if(response.errors?.length){
+    if (response.errors?.length) {
+      console.error(response.errors);
       throw new Error(response.errors.join(', '));
     }
-
-    return { id: response.data.id };
+    console.log(response.data);
+    return { id: response.data.id, link: `https://x.com/${state.screenName}/status/${response.data.id}` };
   }
   catch (err) {
-    console.error(JSON.stringify(err));
+    console.error(err);
+    throw err;
   }
 };
 
-const uploadMedia = async (client, state) => {
-  const existingMedia = media.find(m => (state.image && m.fileName == state.image) || (state.video && m.fileName == state.video));
-  if (existingMedia) return existingMedia.mediaId;
+const uploadMedia = async (client, mediaItems) => {
+  const mediaIds = [];
+  for (const mediaItem of mediaItems) {
+    const existingMedia = media.find(m => (mediaItem.fileName == m.fileName));
+    if (existingMedia) {
+      mediaIds.push(existingMedia.mediaId);
+      continue;
+    }
 
-  let buffer;
-  let mimeType;
-  if (state.image) {
-    buffer = await downloadMedia(state.image);
-    mimeType = 'image/png';
-  } else if (state.video) {
-    buffer = await downloadMedia(state.video);
-    mimeType = 'video/mp4';
+    const buffer = await downloadMedia(mediaItem.fileName);
+    const mediaId = await client.v1.uploadMedia(buffer, { mimeType: mediaItem.mimeType });
+
+    media.push({ fileName: mediaItem.fileName, mediaId });
   }
-  const mediaId = await client.v1.uploadMedia(buffer, { mimeType });
-
-  media.push({ fileName: state.image, mediaId });
-  return mediaId;
+  return mediaIds;
 };
 
 const downloadMedia = async (url) => {

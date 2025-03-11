@@ -16,13 +16,14 @@ export const getXClient = async () => {
 };
 
 export const getClient = async (tenantId, accountId) => {
-  let keys = await getAccountKeys(tenantId, accountId);
+  const keys = await getAccountKeys(tenantId, accountId);
+  const creds = await getXAppCredentials();
   const twitterClient = new TwitterApi({
-    appKey: keys.apiKey,
-    appSecret: keys.apiKeySecret,
+    appKey: creds.appKey,
+    appSecret: creds.appSecret,
     accessToken: keys.accessToken,
-    accessSecret: keys.accessTokenSecret
-  }, {});
+    accessSecret: keys.accessSecret
+  });
 
   return await twitterClient.readWrite;
 };

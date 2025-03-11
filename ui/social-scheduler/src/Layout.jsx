@@ -221,7 +221,7 @@ function Layout({ toggleNav, isNavExpanded }) {
                 </div>
               ) : notifications.length > 0 ? (
                 notifications.map((notification) => (
-                  <div key={notification.id} className={`notification-item ${notification.isUnread ? 'unread' : ''}`}>
+                  <div key={notification.id} className={`notification-item ${notification.isUnread ? 'unread' : ''}`} onClick={() => handleNotificationClick(notification.id, true)}>
                     <div className="notification-text">{notification.message}</div>
                     <div className="notification-actions">
                       {notification.isUnread ? (

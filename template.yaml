@@ -475,6 +475,24 @@ Resources:
               Action: ssm:GetParameter
               Resource: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/social-media/*
 
+  SendLinkedInPostFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        <<: *esbuild-properties
+        EntryPoints:
+          - send-linkedin-post.mjs
+    Properties:
+      Handler: send-linkedin-post.handler
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action: ssm:GetParameter
+              Resource: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/social-media/*
+
   SendDiscordMessageFunction:
     Type: AWS::Serverless::Function
     Metadata:
@@ -1182,6 +1200,7 @@ Resources:
       DefinitionSubstitutions:
         LambdaInvoke: !Sub arn:${AWS::Partition}:states:::lambda:invoke
         SendXPost: !GetAtt SendXPostFunction.Arn
+        SendLinkedInPost: !GetAtt SendLinkedInPostFunction.Arn
         SendDiscordMessage: !GetAtt SendDiscordMessageFunction.Arn
         EventBridgePutEvents: !Sub arn:${AWS::Partition}:states:::events:putEvents
         DynamoDbGetItem: !Sub arn:${AWS::Partition}:states:::dynamodb:getItem
@@ -1195,6 +1214,7 @@ Resources:
               Action: lambda:InvokeFunction
               Resource:
                 - !GetAtt SendXPostFunction.Arn
+                - !GetAtt SendLinkedInPostFunction.Arn
                 - !GetAtt SendDiscordMessageFunction.Arn
                 - "{{resolve:ssm:/serverless-toolbox/marshall-unmarshall-data}}"
             - Effect: Allow

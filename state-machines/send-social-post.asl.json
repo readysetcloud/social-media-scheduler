@@ -74,12 +74,51 @@
         {
           "Condition": "{% $message.platform = \"discord\" %}",
           "Next": "Send Discord message"
+        },
+        {
+          "Condition": "{% $message.platform = \"linkedin\" %}",
+          "Next": "Send LinkedIn post"
         }
       ],
       "Default": "Update message status",
       "Assign": {
         "status": "cancelled"
       }
+    },
+    "Send LinkedIn post": {
+      "Type": "Task",
+      "Resource": "${LambdaInvoke}",
+      "Output": "{% $states.result.Payload %}",
+      "Arguments": {
+        "FunctionName": "${SendLinkedInPost}",
+        "Payload": "{% $merge([$message, {\"accountId\": $accountId, \"tenantId\": $tenantId }]) %}"
+      },
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "IntervalSeconds": 1,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "Next": "Update message status",
+          "Assign": {
+            "status": "failed"
+          }
+        }
+      ],
+      "Assign": {
+        "postId": "{% $states.result.Payload.id %}",
+        "status": "sent"
+      },
+      "Next": "Update message status"
     },
     "Send X post": {
       "Type": "Task",
